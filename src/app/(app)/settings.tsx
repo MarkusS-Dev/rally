@@ -126,6 +126,7 @@ function ReminderForm() {
               : { text: "Reminders aren't available here (only in the phone app).", tone: 'error' },
       );
     } catch (e) {
+      console.error('Reminder failed:', e);
       setMessage({ text: `Could not set the reminder: ${describe(e)}`, tone: 'error' });
     } finally {
       setBusy(false);
