@@ -10,6 +10,7 @@ import {
   rankingFor,
   weeklyChangeKg,
 } from '../src/lib/stats';
+import { splitTime } from '../src/lib/time';
 import { normalizeTime, validateSignIn, validateSignUp } from '../src/lib/validation';
 
 const w = (measuredOn: string, weightKg: number, id = 0): WeighIn => ({
@@ -147,5 +148,15 @@ describe('rankingFor', () => {
   it('uses the record row that belongs to the metric', () => {
     expect(rankingFor(entries, 'best_day', 'kg')).toEqual([entries[3]]);
     expect(rankingFor(entries, 'best_day', 'pct')).toEqual([entries[4]]);
+  });
+});
+
+describe('splitTime (reminder wheels)', () => {
+  it('rounds minutes to the 5-minute wheel', () => {
+    expect(splitTime('07:32')).toEqual([7, 30]);
+    expect(splitTime('07:33')).toEqual([7, 35]);
+    expect(splitTime('08:00')).toEqual([8, 0]);
+    expect(splitTime('07:58')).toEqual([8, 0]); // carries into the next hour
+    expect(splitTime('23:58')).toEqual([0, 0]); // and past midnight
   });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { TimeWheel } from '@/components/time-wheel';
 import { Button, Card, Field, Loading, Notice, Row, Screen } from '@/components/ui';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -11,7 +12,8 @@ import { getMySettings, updateDisplayName, updateSettings } from '@/lib/api/sett
 import type { MySettings } from '@/lib/api/types';
 import { applyReminder, getSavedReminderTime } from '@/lib/reminders';
 import { useSession } from '@/lib/session';
-import { normalizeTime, type FieldErrors } from '@/lib/validation';
+import { joinTime, splitTime } from '@/lib/time';
+import type { FieldErrors } from '@/lib/validation';
 
 const DEFAULT_REMINDER = '08:00';
 
@@ -103,23 +105,17 @@ function ReminderForm() {
   const theme = useTheme();
   const [saved] = useState(getSavedReminderTime);
   const [on, setOn] = useState(saved !== null);
-  const [time, setTime] = useState(saved ?? DEFAULT_REMINDER);
+  // The wheels use 5-minute steps, so round an older saved time to match.
+  const [time, setTime] = useState(() => joinTime(...splitTime(saved ?? DEFAULT_REMINDER)));
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string[] | undefined>();
   const [message, setMessage] = useState<Message>(null);
 
   async function save() {
-    setError(undefined);
     setMessage(null);
-    const normalized = on ? normalizeTime(time) : null;
-    if (on && !normalized) {
-      setError(['Use 24-hour time, e.g. 07:30.']);
-      return;
-    }
+    const normalized = on ? time : null;
     setBusy(true);
     try {
       const result = await applyReminder(normalized);
-      if (normalized) setTime(normalized);
       setMessage(
         result === 'scheduled'
           ? { text: `Reminder set for ${normalized} every day.`, tone: 'info' }
@@ -147,16 +143,7 @@ function ReminderForm() {
         </View>
         <Switch value={on} onValueChange={setOn} trackColor={{ true: theme.accent }} accessibilityLabel="Daily reminder" />
       </Row>
-      {on && (
-        <Field
-          label="Time (24-hour)"
-          placeholder="08:00"
-          value={time}
-          onChangeText={setTime}
-          keyboardType="numbers-and-punctuation"
-          errors={error}
-        />
-      )}
+      {on && <TimeWheel value={time} onChange={setTime} />}
       <Notice message={message?.text} tone={message?.tone} />
       <Button title="Save reminder" variant="secondary" onPress={save} loading={busy} />
     </Card>
