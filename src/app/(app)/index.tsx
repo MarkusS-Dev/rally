@@ -4,24 +4,16 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Field, Loading, Notice, Row, Screen, Toggle, ToggleRow } from '@/components/ui';
+import { Button, Card, Chip, Loading, Notice, Row, Screen, Toggle, ToggleRow } from '@/components/ui';
 import { WeighInPrompt } from '@/components/weigh-in-prompt';
 import { WeightChart } from '@/components/weight-chart';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError } from '@/lib/api/errors';
 import { getMySettings } from '@/lib/api/settings';
 import { getMyStreak } from '@/lib/api/streaks';
 import type { Streak, WeighIn } from '@/lib/api/types';
-import {
-  deleteWeighIn,
-  getFirstWeighIn,
-  listAllWeighInsSince,
-  listWeighIns,
-  updateWeighIn,
-} from '@/lib/api/weigh-ins';
-import { confirm } from '@/lib/confirm';
+import { getFirstWeighIn, listAllWeighInsSince, listWeighIns } from '@/lib/api/weigh-ins';
 import { addDays, formatChangeKg, formatKg, goalProgress } from '@/lib/stats';
 import { localToday } from '@/lib/validation';
 
@@ -136,11 +128,6 @@ export default function TrendScreen() {
               <Toggle label="Trend" value={showTrend} onChange={setShowTrend} />
             </ToggleRow>
           </Card>
-          <Card style={styles.list}>
-            {[...points].reverse().map((w) => (
-              <HistoryRow key={w.id} item={w} onChanged={query.reload} />
-            ))}
-          </Card>
         </>
       )}
     </Screen>
@@ -230,84 +217,10 @@ function RangeSummary({ points }: { points: WeighIn[] }) {
   );
 }
 
-/** One weigh-in; tap to edit or delete it. */
-function HistoryRow({ item, onChanged }: { item: WeighIn; onChanged: () => void }) {
-  const theme = useTheme();
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(item.weightKg.toFixed(1));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string[] | undefined>();
-
-  async function save() {
-    setBusy(true);
-    setError(undefined);
-    try {
-      await updateWeighIn(item.id, { weight: Number(value.replace(',', '.')), unit: 'kg' });
-      setEditing(false);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof ApiError ? (e.fieldErrors.weight ?? [e.message]) : [String(e)]);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove() {
-    if (!(await confirm('Delete weigh-in?', `${formatKg(item.weightKg)} on ${item.measuredOn}`, 'Delete'))) return;
-    setBusy(true);
-    try {
-      await deleteWeighIn(item.id);
-      onChanged();
-    } catch (e) {
-      setError([e instanceof Error ? e.message : String(e)]);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <View style={[styles.row, { borderBottomColor: theme.border }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityHint="Edit or delete this weigh-in"
-        onPress={() => setEditing((e) => !e)}
-        style={styles.rowHeader}>
-        <ThemedText>{item.measuredOn}</ThemedText>
-        <ThemedText type="smallBold">
-          {formatKg(item.weightKg)}
-          {item.lastModifiedAt ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              {' '}
-              · edited
-            </ThemedText>
-          ) : null}
-        </ThemedText>
-      </Pressable>
-      {editing && (
-        <View style={styles.editor}>
-          <Field label="Weight (kg)" value={value} onChangeText={setValue} keyboardType="decimal-pad" errors={error} />
-          <Row>
-            <View style={styles.flex}>
-              <Button title="Save" onPress={save} loading={busy} />
-            </View>
-            <View style={styles.flex}>
-              <Button title="Delete" variant="danger" onPress={remove} disabled={busy} />
-            </View>
-          </Row>
-        </View>
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   spread: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   goal: { gap: Spacing.two },
   right: { alignItems: 'flex-end' },
   track: { height: 10, borderRadius: 5, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
-  list: { gap: 0, paddingVertical: Spacing.one },
-  row: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: Spacing.two },
-  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.two },
-  editor: { gap: Spacing.two, paddingBottom: Spacing.two },
-  flex: { flex: 1 },
 });
