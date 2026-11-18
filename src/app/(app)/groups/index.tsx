@@ -48,7 +48,7 @@ function GroupLink({ group }: { group: Group }) {
         accessibilityRole="link"
         style={({ pressed }) => [
           styles.groupLink,
-          { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: pressed ? 0.75 : 1 },
+          { backgroundColor: theme.backgroundElement, borderColor: theme.accent, opacity: pressed ? 0.75 : 1 },
         ]}>
         <View style={styles.groupText}>
           <ThemedText type="smallBold" style={styles.groupName}>
@@ -58,7 +58,7 @@ function GroupLink({ group }: { group: Group }) {
             {group.isOwner ? 'Owner' : 'Member'}
           </ThemedText>
         </View>
-        <ThemedText style={styles.chevron} themeColor="textSecondary">
+        <ThemedText style={[styles.chevron, { color: theme.accent }]}>
           ›
         </ThemedText>
       </Pressable>
@@ -148,15 +148,16 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 const styles = StyleSheet.create({
   groupLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: Spacing.three,
-    borderWidth: 1.5,
-    padding: Spacing.three,
+    borderWidth: 2,
+    paddingVertical: Spacing.four,
+    paddingHorizontal: Spacing.five,
   },
-  groupText: { flex: 1, gap: Spacing.one },
-  chevron: { fontSize: 28, lineHeight: 30 },
-  groupName: { fontSize: 18 },
+  groupText: { alignItems: 'center', gap: Spacing.one },
+  // Pinned to the right edge so it doesn't push the centred text off-centre.
+  chevron: { position: 'absolute', right: Spacing.three, fontSize: 28, lineHeight: 30 },
+  groupName: { fontSize: 20, textAlign: 'center' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
     borderTopLeftRadius: Spacing.four,
