@@ -4,7 +4,7 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { GroupChart, type ChartSeries } from '@/components/group-chart';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Loading, Notice, Row, Screen } from '@/components/ui';
+import { Button, Card, Chip, Loading, Notice, Row, Screen, Segmented } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -100,13 +100,19 @@ export default function GroupScreen() {
       {menuOpen && <GroupMenu group={group} />}
       {query.status === 'error' && <Notice message={query.error.message} />}
 
-      <Row>
-        <Chip label="% change" selected={metric === 'pct'} onPress={() => setMetric('pct')} />
-        <Chip label="kg change" selected={metric === 'kg'} onPress={() => setMetric('kg')} />
-      </Row>
-
       <Card>
-        <ThemedText type="smallBold">{metric === 'kg' ? 'Weight' : 'Change in %'}</ThemedText>
+        <Row style={styles.cardHeader}>
+          <ThemedText type="smallBold">{metric === 'kg' ? 'Weight' : 'Change'}</ThemedText>
+          <Segmented
+            accessibilityLabel="Show kilograms or percent"
+            options={[
+              { value: 'pct', label: '%' },
+              { value: 'kg', label: 'kg' },
+            ]}
+            value={metric}
+            onChange={setMetric}
+          />
+        </Row>
         <Row>
           {CHART_RANGES.map((r) => (
             <Chip key={r.label} label={r.label} selected={range === r.label} onPress={() => setRange(r.label)} />
@@ -299,6 +305,7 @@ function GroupMenu({ group }: { group: Group }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  cardHeader: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   section: { marginTop: Spacing.two, letterSpacing: 1 },
   rankingCard: { gap: Spacing.two },
   rankRow: { flexWrap: 'nowrap', paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: Spacing.two },

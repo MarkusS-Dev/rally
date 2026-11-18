@@ -218,3 +218,46 @@ const styles = StyleSheet.create({
   notice: { borderWidth: 1, borderRadius: Spacing.two, padding: Spacing.three },
   loading: { paddingVertical: Spacing.six, alignItems: 'center' },
 });
+
+/** Compact two-or-more option pill, e.g. "% | kg". */
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  accessibilityLabel,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  accessibilityLabel: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={accessibilityLabel}
+      style={[segmentedStyles.track, { backgroundColor: theme.backgroundSelected }]}>
+      {options.map((o) => {
+        const selected = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected }}
+            onPress={() => onChange(o.value)}
+            hitSlop={6}
+            style={[segmentedStyles.option, selected && { backgroundColor: theme.background }]}>
+            <Text style={{ color: selected ? theme.text : theme.textSecondary, fontWeight: '700', fontSize: 14 }}>
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const segmentedStyles = StyleSheet.create({
+  track: { flexDirection: 'row', borderRadius: 999, padding: 3 },
+  option: { minWidth: 40, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999 },
+});
