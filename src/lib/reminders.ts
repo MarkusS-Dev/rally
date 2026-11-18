@@ -38,6 +38,16 @@ function saveReminderTime(time: string | null) {
 
 export type ReminderResult = 'scheduled' | 'off' | 'denied' | 'unsupported';
 
+/** Run one step, and say which step it was if it fails (for diagnosing device-specific errors). */
+async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    throw new Error(`${name} failed: ${reason}`);
+  }
+}
+
 /**
  * Make the device's schedule match `time` ("HH:MM", or null for off).
  * With `askPermission: false` it never shows the permission prompt; used when
@@ -50,37 +60,44 @@ export async function applyReminder(
   if (Platform.OS === 'web') return 'unsupported';
 
   saveReminderTime(time);
-  await Notifications.cancelAllScheduledNotificationsAsync();
+  await step('Clearing old reminders', () => Notifications.cancelAllScheduledNotificationsAsync());
   if (!time) return 'off';
 
   if (Platform.OS === 'android') {
     // Android 13+ only shows the permission prompt once a channel exists.
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: 'Daily weigh-in reminder',
-      // Exported via `export *`, which the import/namespace lint rule can't follow.
-      // eslint-disable-next-line import/namespace
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
+    await step('Creating the Android notification channel', () =>
+      Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+        name: 'Daily weigh-in reminder',
+        // Exported via `export *`, which the import/namespace lint rule can't follow.
+        // eslint-disable-next-line import/namespace
+        importance: Notifications.AndroidImportance.DEFAULT,
+      }),
+    );
   }
 
-  let permission = await Notifications.getPermissionsAsync();
+  let permission = await step('Checking notification permission', () => Notifications.getPermissionsAsync());
   if (!permission.granted && askPermission) {
-    permission = await Notifications.requestPermissionsAsync();
+    permission = await step('Asking for notification permission', () => Notifications.requestPermissionsAsync());
   }
   if (!permission.granted) return 'denied';
 
   const [hour, minute] = time.split(':').map(Number);
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Time to weigh in',
-      body: "Log today's weight and keep the rally going.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute,
-      channelId: CHANNEL_ID,
-    },
-  });
+  await step('Scheduling the daily reminder', () =>
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Time to weigh in',
+        body: "Log today's weight and keep the rally going.",
+        // Explicit values so Android never reads these as missing (null).
+        data: { kind: 'daily-reminder' },
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+        channelId: CHANNEL_ID,
+      },
+    }),
+  );
   return 'scheduled';
 }
