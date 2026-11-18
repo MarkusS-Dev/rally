@@ -2,7 +2,7 @@
 // dashed least-squares trendline in the same colour.
 
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { ThemedText } from '@/components/themed-text';
@@ -31,18 +31,24 @@ export function GroupChart({
   series,
   metric,
   showWeighIns = true,
+  hidden,
+  onToggleMember,
 }: {
   series: ChartSeries[];
   metric: RankingMetric;
   /** Off: only the trendlines. */
   showWeighIns?: boolean;
+  /** Members whose lines are hidden; tapping a legend name toggles them. */
+  hidden: ReadonlySet<string>;
+  onToggleMember: (userId: string) => void;
 }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
 
   // In % mode each line shows change from that person's first point in range.
-  const lines = series
-    .filter((s) => s.points.length > 0)
+  const withData = series.filter((s) => s.points.length > 0);
+  const lines = withData
+    .filter((s) => !hidden.has(s.userId))
     .map((s) => {
       const base = s.points[0].weightKg;
       const pts = s.points.map((p) => ({
@@ -52,12 +58,39 @@ export function GroupChart({
       return { ...s, pts, trend: linearTrend(pts) };
     });
 
-  if (lines.length === 0) {
+  const legend = (
+    <View style={styles.legend}>
+      {withData.map((s) => {
+        const off = hidden.has(s.userId);
+        return (
+          <Pressable
+            key={s.userId}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: !off }}
+            accessibilityLabel={`Show ${s.name}`}
+            onPress={() => onToggleMember(s.userId)}
+            hitSlop={8}
+            style={[styles.legendItem, { opacity: off ? 0.35 : 1 }]}>
+            <View style={[styles.swatch, { backgroundColor: off ? theme.textSecondary : s.color }]} />
+            <ThemedText type="small">
+              {s.name}
+              {s.isMe ? ' (you)' : ''}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  if (withData.length === 0) {
     return (
       <ThemedText type="small" themeColor="textSecondary">
         No weigh-ins in this period yet.
       </ThemedText>
     );
+  }
+  if (lines.length === 0) {
+    return <View style={styles.wrap}>{legend}</View>;
   }
 
   const allX = lines.flatMap((l) => l.pts.map((p) => p.x));
@@ -149,17 +182,7 @@ export function GroupChart({
         )}
       </View>
 
-      <View style={styles.legend}>
-        {lines.map((l) => (
-          <View key={l.userId} style={styles.legendItem}>
-            <View style={[styles.swatch, { backgroundColor: l.color }]} />
-            <ThemedText type="small">
-              {l.name}
-              {l.isMe ? ' (you)' : ''}
-            </ThemedText>
-          </View>
-        ))}
-      </View>
+      {legend}
     </View>
   );
 }

@@ -62,6 +62,16 @@ export default function GroupScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const theme = useTheme();
   const [showWeighIns, setShowWeighIns] = useState(true);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+
+  function toggleMember(userId: string) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
 
   const query = useFocusQuery(() => loadGroup(id), id);
   const days = CHART_RANGES.find((r) => r.label === range)!.days;
@@ -120,7 +130,13 @@ export default function GroupScreen() {
           ))}
         </Row>
         {chart.data ? (
-          <GroupChart series={series} metric={metric} showWeighIns={showWeighIns} />
+          <GroupChart
+            series={series}
+            metric={metric}
+            showWeighIns={showWeighIns}
+            hidden={hidden}
+            onToggleMember={toggleMember}
+          />
         ) : chart.status === 'error' ? (
           <Notice message={chart.error.message} />
         ) : (
