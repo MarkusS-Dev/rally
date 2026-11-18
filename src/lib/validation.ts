@@ -139,3 +139,39 @@ export function validatePage(input: PageInput): FieldErrors<'page' | 'pageSize' 
   }
   return errors;
 }
+
+// Accounts. Supabase's default minimum password length is 6.
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MIN_PASSWORD_LENGTH = 6;
+
+export function validateSignIn(input: { email: string; password: string }): FieldErrors<'email' | 'password'> {
+  const errors: FieldErrors<'email' | 'password'> = {};
+  if (!EMAIL.test(input.email.trim())) add(errors, 'email', 'Enter a valid email address.');
+  if (input.password.length === 0) add(errors, 'password', 'Enter your password.');
+  return errors;
+}
+
+export function validateSignUp(input: {
+  email: string;
+  password: string;
+  displayName: string;
+}): FieldErrors<'email' | 'password' | 'displayName'> {
+  const errors: FieldErrors<'email' | 'password' | 'displayName'> = {
+    ...validateSignIn(input),
+    ...validateDisplayName(input.displayName),
+  };
+  if (input.password.length > 0 && input.password.length < MIN_PASSWORD_LENGTH) {
+    add(errors, 'password', `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  return errors;
+}
+
+/** "7:5" → "07:05"; returns null if it isn't a valid 24-hour time. */
+export function normalizeTime(value: string): string | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}

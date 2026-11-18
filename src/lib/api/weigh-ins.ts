@@ -91,3 +91,22 @@ export async function deleteWeighIn(id: number): Promise<void> {
     throw new ApiError('That weigh-in no longer exists.', 'not-found');
   }
 }
+
+/** Every weigh-in from `from` (inclusive) onwards, oldest first. Pages through 100 at a time. */
+export async function listAllWeighInsSince(from?: string): Promise<WeighIn[]> {
+  const all: WeighIn[] = [];
+  for (let page = 1; ; page++) {
+    const result = await listWeighIns({ page, pageSize: 100, from });
+    all.push(...result.items);
+    if (!result.hasMore) break;
+  }
+  return all.reverse();
+}
+
+/** Your very first weigh-in (the starting point for goal progress), or null. */
+export async function getFirstWeighIn(): Promise<WeighIn | null> {
+  const { total } = await listWeighIns({ pageSize: 1 });
+  if (total === 0) return null;
+  const oldest = await listWeighIns({ page: total, pageSize: 1 });
+  return oldest.items[0] ?? null;
+}

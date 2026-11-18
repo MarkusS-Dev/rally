@@ -45,6 +45,14 @@ export async function leaveGroup(groupId: string): Promise<void> {
   unwrap(await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', me));
 }
 
+/** Delete a group for everyone. Only its creator may do this (enforced by RLS). */
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { data, error } = await supabase.from('groups').delete().eq('id', groupId).select('id');
+  if (unwrap<{ id: string }[]>({ data, error }).length === 0) {
+    throw new ApiError('Only the person who created the group can delete it.', 'not-found');
+  }
+}
+
 /** Members of a group: the sub-resource, like the course's /employees/{id}/benefits. */
 export async function listGroupMembers(groupId: string): Promise<GroupMember[]> {
   // Many-to-one embeds arrive as one object; untyped supabase-js claims an array. Accept both.
