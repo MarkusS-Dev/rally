@@ -40,7 +40,6 @@ export default function SettingsScreen() {
         query.status === 'loading' && <Loading />
       )}
 
-      <ReminderForm />
 
       <Card>
         <ThemedText type="small" themeColor="textSecondary">
@@ -52,10 +51,17 @@ export default function SettingsScreen() {
   );
 }
 
+/** Name, goal and the daily reminder; read-only until you tap Edit. */
 function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () => void }) {
+  const theme = useTheme();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initial.displayName);
   const [goal, setGoal] = useState(initial.goalWeightKg?.toFixed(1) ?? '');
+  // The reminder is stored on this phone only; nothing is sent to the server.
+  const [savedReminder, setSavedReminder] = useState(getSavedReminderTime);
+  const [reminderOn, setReminderOn] = useState(savedReminder !== null);
+  // The wheels use 5-minute steps, so round an older saved time to match.
+  const [time, setTime] = useState(() => joinTime(...splitTime(savedReminder ?? DEFAULT_REMINDER)));
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<Message>(null);
@@ -63,6 +69,8 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
   function cancel() {
     setName(initial.displayName);
     setGoal(initial.goalWeightKg?.toFixed(1) ?? '');
+    setReminderOn(savedReminder !== null);
+    setTime(joinTime(...splitTime(savedReminder ?? DEFAULT_REMINDER)));
     setErrors({});
     setMessage(null);
     setEditing(false);
@@ -78,8 +86,6 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
         name.trim() !== initial.displayName ? updateDisplayName(name) : Promise.resolve(),
         updateSettings({ goalWeight, unit: 'kg' }),
       ]);
-      setEditing(false);
-      onSaved();
     } catch (e) {
       if (e instanceof ApiError) {
         setErrors(e.fieldErrors);
@@ -87,9 +93,37 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
       } else {
         setMessage({ text: `Could not save: ${describe(e)}`, tone: 'error' });
       }
-    } finally {
       setBusy(false);
+      return;
     }
+
+    const reminder = reminderOn ? time : null;
+    if (reminder !== savedReminder) {
+      try {
+        const result = await applyReminder(reminder);
+        if (result === 'denied' || result === 'unsupported') {
+          setMessage({
+            text:
+              result === 'denied'
+                ? 'Notifications are blocked for this app. Allow them in your phone settings, then save again.'
+                : "Reminders aren't available here (only in the phone app).",
+            tone: 'error',
+          });
+          setBusy(false);
+          return;
+        }
+        setSavedReminder(reminder);
+      } catch (e) {
+        console.error('Reminder failed:', e);
+        setMessage({ text: `Could not set the reminder: ${describe(e)}`, tone: 'error' });
+        setBusy(false);
+        return;
+      }
+    }
+
+    setBusy(false);
+    setEditing(false);
+    onSaved();
   }
 
   return (
@@ -114,6 +148,16 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
             keyboardType="decimal-pad"
             errors={errors.goalWeight}
           />
+          <Row style={styles.spread}>
+            <ThemedText type="smallBold">Daily reminder</ThemedText>
+            <Switch
+              value={reminderOn}
+              onValueChange={setReminderOn}
+              trackColor={{ true: theme.accent }}
+              accessibilityLabel="Daily reminder"
+            />
+          </Row>
+          {reminderOn && <TimeWheel value={time} onChange={setTime} />}
           <Notice message={message?.text} tone={message?.tone} />
           <Row style={styles.nowrap}>
             <View style={styles.flex}>
@@ -134,62 +178,17 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
             <ThemedText themeColor="textSecondary">Goal</ThemedText>
             <ThemedText>{initial.goalWeightKg != null ? formatKg(initial.goalWeightKg) : '–'}</ThemedText>
           </Row>
+          <Row style={styles.spread}>
+            <ThemedText themeColor="textSecondary">Reminder</ThemedText>
+            <ThemedText>{savedReminder ?? 'Off'}</ThemedText>
+          </Row>
         </>
       )}
     </Card>
   );
 }
 
-/** Stored on this phone only; nothing is sent to the server. */
-function ReminderForm() {
-  const theme = useTheme();
-  const [saved] = useState(getSavedReminderTime);
-  const [on, setOn] = useState(saved !== null);
-  // The wheels use 5-minute steps, so round an older saved time to match.
-  const [time, setTime] = useState(() => joinTime(...splitTime(saved ?? DEFAULT_REMINDER)));
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<Message>(null);
-
-  async function save() {
-    setMessage(null);
-    const normalized = on ? time : null;
-    setBusy(true);
-    try {
-      const result = await applyReminder(normalized);
-      setMessage(
-        result === 'scheduled'
-          ? { text: `Reminder set for ${normalized} every day.`, tone: 'info' }
-          : result === 'off'
-            ? { text: 'Reminder turned off.', tone: 'info' }
-            : result === 'denied'
-              ? { text: 'Notifications are blocked for this app. Allow them in your phone settings, then save again.', tone: 'error' }
-              : { text: "Reminders aren't available here (only in the phone app).", tone: 'error' },
-      );
-    } catch (e) {
-      console.error('Reminder failed:', e);
-      setMessage({ text: `Could not set the reminder: ${describe(e)}`, tone: 'error' });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card>
-      <Row style={styles.switchRow}>
-        <View style={styles.flex}>
-          <ThemedText type="smallBold">Daily reminder</ThemedText>
-        </View>
-        <Switch value={on} onValueChange={setOn} trackColor={{ true: theme.accent }} accessibilityLabel="Daily reminder" />
-      </Row>
-      {on && <TimeWheel value={time} onChange={setTime} />}
-      <Notice message={message?.text} tone={message?.tone} />
-      <Button title="Save reminder" variant="secondary" onPress={save} loading={busy} />
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
-  switchRow: { flexWrap: 'nowrap' },
   spread: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   nowrap: { flexWrap: 'nowrap' },
   flex: { flex: 1 },
