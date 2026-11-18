@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(19);
 
 -- Pin the clock, like the course's TestSystemClock.
 set local app.fixed_now = '2022-01-01T00:00:00Z';
@@ -72,6 +72,21 @@ select is(
 select throws_ok(
   $$select * from public.group_leaderboard('d0000000-0000-0000-0000-000000000004', 'year')$$,
   'P0001', 'invalid period', 'unknown periods are rejected');
+
+select results_eq(
+  $$select change_kg, pct_change from public.group_rankings('d0000000-0000-0000-0000-000000000004')
+    where category = 'best_month' and ranked_by = 'kg' and user_id = 'a0000000-0000-0000-0000-000000000001'$$,
+  $$values (-5.00::numeric, -5.0::numeric)$$,
+  'records: best 30 days for Ann is 100 → 95 kg');
+
+select is(
+  (select count(*)::int from public.group_rankings('d0000000-0000-0000-0000-000000000004')
+    where category = 'best_week'),
+  0, 'records: no drop within 7 days, so no best-week entries');
+
+select is(
+  (select count(*)::int from public.group_weigh_ins('d0000000-0000-0000-0000-000000000004')),
+  3, 'group chart: Ann sees all 3 weigh-ins of the group (hers and Ben''s)');
 
 -- Audit fields: set by the trigger from the pinned clock and the JWT.
 insert into public.weigh_ins (weight_kg, measured_on) values (94, '2022-01-01');

@@ -3,7 +3,15 @@ import { supabase } from '../supabase';
 import { isValid, normalizeInviteCode, validateGroupName, validateInviteCode } from '../validation';
 import { ApiError, unwrap } from './errors';
 import { currentUserId } from './session';
-import type { Group, GroupMember, LeaderboardEntry, LeaderboardPeriod } from './types';
+import type {
+  Group,
+  GroupMember,
+  GroupWeighIn,
+  LeaderboardEntry,
+  LeaderboardPeriod,
+  RankingCategory,
+  RankingEntry,
+} from './types';
 
 type GroupFields = Pick<GroupRow, 'id' | 'name' | 'invite_code' | 'created_by'>;
 
@@ -91,4 +99,43 @@ export async function getLeaderboard(
     weighInCount: Number(r.weigh_in_count),
     isMe: r.user_id === me,
   }));
+}
+
+type RankingRow = {
+  category: RankingCategory;
+  ranked_by: 'both' | 'kg' | 'pct';
+  user_id: string;
+  display_name: string;
+  current_weight_kg: number | string | null;
+  change_kg: number | string;
+  pct_change: number | string;
+  from_date: string;
+  to_date: string;
+};
+
+/** Every ranking for the group (current changes and all-time records) in one call. */
+export async function getGroupRankings(groupId: string): Promise<RankingEntry[]> {
+  const me = await currentUserId();
+  const rows = unwrap<RankingRow[]>(await supabase.rpc('group_rankings', { gid: groupId }));
+  return rows.map((r) => ({
+    category: r.category,
+    rankedBy: r.ranked_by,
+    userId: r.user_id,
+    displayName: r.display_name,
+    currentWeightKg: r.current_weight_kg === null ? null : Number(r.current_weight_kg),
+    changeKg: Number(r.change_kg),
+    pctChange: Number(r.pct_change),
+    fromDate: r.from_date,
+    toDate: r.to_date,
+    isMe: r.user_id === me,
+  }));
+}
+
+/** All members' weigh-ins since a date (or all of them), for the group chart. */
+export async function getGroupWeighIns(groupId: string, since?: string): Promise<GroupWeighIn[]> {
+  type Row = { user_id: string; measured_on: string; weight_kg: number | string };
+  const rows = unwrap<Row[]>(
+    await supabase.rpc('group_weigh_ins', { gid: groupId, since: since ?? null }),
+  );
+  return rows.map((r) => ({ userId: r.user_id, measuredOn: r.measured_on, weightKg: Number(r.weight_kg) }));
 }

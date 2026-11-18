@@ -65,3 +65,23 @@ export type LeaderboardEntry = {
   weighInCount: number;
   isMe: boolean;
 };
+
+export type RankingCategory = 'day' | 'week' | 'month' | 'total' | 'best_day' | 'best_week' | 'best_month';
+export type RankingMetric = 'kg' | 'pct';
+
+/** One person's result in one ranking. */
+export type RankingEntry = {
+  category: RankingCategory;
+  /** Records come once per metric (the best kg drop and the best % drop can differ); current changes serve both. */
+  rankedBy: 'both' | RankingMetric;
+  userId: string;
+  displayName: string;
+  currentWeightKg: number | null;
+  changeKg: number;
+  pctChange: number;
+  fromDate: string;
+  toDate: string;
+  isMe: boolean;
+};
+
+export type GroupWeighIn = { userId: string; measuredOn: string; weightKg: number };

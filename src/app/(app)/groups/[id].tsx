@@ -2,34 +2,72 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
+import { GroupChart, type ChartSeries } from '@/components/group-chart';
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, Loading, Notice, Row, Screen } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
-import { deleteGroup, getLeaderboard, leaveGroup, listMyGroups } from '@/lib/api/groups';
-import type { Group, LeaderboardEntry, LeaderboardPeriod } from '@/lib/api/types';
+import {
+  deleteGroup,
+  getGroupRankings,
+  getGroupWeighIns,
+  leaveGroup,
+  listGroupMembers,
+  listMyGroups,
+} from '@/lib/api/groups';
+import type { Group, GroupMember, RankingCategory, RankingEntry, RankingMetric } from '@/lib/api/types';
 import { confirm } from '@/lib/confirm';
-import { formatChangeKg, formatKg, formatPct } from '@/lib/stats';
+import { addDays, formatChangeKg, formatKg, formatPct, rankingFor } from '@/lib/stats';
+import { localToday } from '@/lib/validation';
 
-const PERIODS: { value: LeaderboardPeriod; label: string; hint: string }[] = [
-  { value: 'week', label: 'Week', hint: 'Change over the last 7 days.' },
-  { value: 'month', label: 'Month', hint: 'Change over the last 30 days.' },
-  { value: 'total', label: 'Total', hint: 'Change since each person’s first weigh-in.' },
+const CHART_RANGES = [
+  { label: 'Week', days: 7 },
+  { label: 'Month', days: 30 },
+  { label: 'Total', days: null },
+] as const;
+type ChartRange = (typeof CHART_RANGES)[number]['label'];
+
+const CURRENT: { category: RankingCategory; title: string; hint: string }[] = [
+  { category: 'day', title: 'Today', hint: 'Since yesterday (people who weighed in today)' },
+  { category: 'week', title: 'This week', hint: 'Last 7 days' },
+  { category: 'month', title: 'This month', hint: 'Last 30 days' },
+  { category: 'total', title: 'All time', hint: 'Since the first weigh-in' },
 ];
 
-async function loadGroup(id: string, period: LeaderboardPeriod) {
-  const [groups, leaderboard] = await Promise.all([listMyGroups(), getLeaderboard(id, period)]);
+const RECORDS: { category: RankingCategory; title: string; hint: string }[] = [
+  { category: 'best_day', title: 'Best single day', hint: 'Biggest drop between two days in a row' },
+  { category: 'best_week', title: 'Best 7 days', hint: 'Biggest drop within any 7 days' },
+  { category: 'best_month', title: 'Best 30 days', hint: 'Biggest drop within any 30 days' },
+];
+
+// Distinct line colours for members; "you" always get the brand orange.
+const MEMBER_COLORS = ['#2E86DE', '#10AC84', '#8E44AD', '#F39C12', '#E84393', '#00A8B5', '#6D4C41', '#7F8C8D'];
+
+async function loadGroup(id: string) {
+  const [groups, members, rankings] = await Promise.all([
+    listMyGroups(),
+    listGroupMembers(id),
+    getGroupRankings(id),
+  ]);
   const group = groups.find((g) => g.id === id);
   if (!group) throw new Error("This group doesn't exist anymore, or you're no longer in it.");
-  return { group, leaderboard };
+  return { group, members, rankings };
 }
 
 export default function GroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [period, setPeriod] = useState<LeaderboardPeriod>('week');
-  const query = useFocusQuery(() => loadGroup(id, period), `${id}:${period}`);
+  const [metric, setMetric] = useState<RankingMetric>('pct');
+  const [range, setRange] = useState<ChartRange>('Month');
   const [menuOpen, setMenuOpen] = useState(false);
+  const theme = useTheme();
+
+  const query = useFocusQuery(() => loadGroup(id), id);
+  const days = CHART_RANGES.find((r) => r.label === range)!.days;
+  const chart = useFocusQuery(
+    () => getGroupWeighIns(id, days === null ? undefined : addDays(localToday(), -days)),
+    `${id}:${range}`,
+  );
 
   if (!query.data) {
     return (
@@ -39,45 +77,156 @@ export default function GroupScreen() {
     );
   }
 
-  const { group, leaderboard } = query.data;
-  const ranked = leaderboard.filter((e) => e.pctChange !== null);
-  const unranked = leaderboard.filter((e) => e.pctChange === null);
+  const { group, members, rankings } = query.data;
+  const meId = rankings.find((r) => r.isMe)?.userId;
+  const colorOf = memberColors(members, meId, theme.accent);
+
+  const series: ChartSeries[] = members.map((m) => ({
+    userId: m.userId,
+    name: m.displayName,
+    color: colorOf(m.userId),
+    isMe: m.userId === meId,
+    points: (chart.data ?? []).filter((w) => w.userId === m.userId),
+  }));
 
   return (
-    <Screen underHeader title={group.name}>
-      <Stack.Screen options={{ title: group.name }} />
+    <Screen underHeader>
+      <Stack.Screen
+        options={{
+          title: group.name,
+          headerRight: () => <MenuButton open={menuOpen} onPress={() => setMenuOpen((o) => !o)} />,
+        }}
+      />
+      {menuOpen && <GroupMenu group={group} />}
       {query.status === 'error' && <Notice message={query.error.message} />}
 
-      <Card style={styles.board}>
-        <Row style={styles.header}>
-          <ThemedText type="smallBold">Leaderboard</ThemedText>
-          <MenuButton open={menuOpen} onPress={() => setMenuOpen((o) => !o)} />
-        </Row>
+      <Row>
+        <Chip label="% change" selected={metric === 'pct'} onPress={() => setMetric('pct')} />
+        <Chip label="kg change" selected={metric === 'kg'} onPress={() => setMetric('kg')} />
+      </Row>
 
-        {menuOpen && <GroupMenu group={group} />}
-
+      <Card>
+        <ThemedText type="smallBold">{metric === 'kg' ? 'Weight' : 'Change in %'}</ThemedText>
         <Row>
-          {PERIODS.map((p) => (
-            <Chip key={p.value} label={p.label} selected={period === p.value} onPress={() => setPeriod(p.value)} />
+          {CHART_RANGES.map((r) => (
+            <Chip key={r.label} label={r.label} selected={range === r.label} onPress={() => setRange(r.label)} />
           ))}
         </Row>
-        <ThemedText type="small" themeColor="textSecondary">
-          {PERIODS.find((p) => p.value === period)!.hint} Most weight lost (in %) ranks first.
-        </ThemedText>
-
-        {ranked.map((entry, i) => (
-          <LeaderboardRow key={entry.userId} entry={entry} rank={i + 1} />
-        ))}
-        {unranked.map((entry) => (
-          <LeaderboardRow key={entry.userId} entry={entry} rank={null} />
-        ))}
-        {leaderboard.length === 1 && (
-          <ThemedText type="small" themeColor="textSecondary">
-            It&apos;s just you so far. Invite friends from the ⋯ menu.
-          </ThemedText>
+        {chart.data ? (
+          <GroupChart series={series} metric={metric} />
+        ) : chart.status === 'error' ? (
+          <Notice message={chart.error.message} />
+        ) : (
+          <Loading />
         )}
       </Card>
+
+      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
+        {metric === 'kg' ? 'KG LOST' : '% LOST'} · NOW
+      </ThemedText>
+      {CURRENT.map((c) => (
+        <RankingCard
+          key={c.category}
+          title={c.title}
+          hint={c.hint}
+          entries={rankingFor(rankings, c.category, metric)}
+          metric={metric}
+          colorOf={colorOf}
+          showWeight
+        />
+      ))}
+
+      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
+        {metric === 'kg' ? 'KG LOST' : '% LOST'} · RECORDS
+      </ThemedText>
+      {RECORDS.map((c) => (
+        <RankingCard
+          key={c.category}
+          title={c.title}
+          hint={c.hint}
+          entries={rankingFor(rankings, c.category, metric)}
+          metric={metric}
+          colorOf={colorOf}
+        />
+      ))}
+
+      {members.length === 1 && (
+        <ThemedText type="small" themeColor="textSecondary">
+          It&apos;s just you so far. Invite friends from the ⋯ menu.
+        </ThemedText>
+      )}
     </Screen>
+  );
+}
+
+function memberColors(members: GroupMember[], meId: string | undefined, myColor: string) {
+  const others = members.filter((m) => m.userId !== meId);
+  return (userId: string) => {
+    if (userId === meId) return myColor;
+    const i = others.findIndex((m) => m.userId === userId);
+    return MEMBER_COLORS[(i < 0 ? 0 : i) % MEMBER_COLORS.length];
+  };
+}
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+function RankingCard({
+  title,
+  hint,
+  entries,
+  metric,
+  colorOf,
+  showWeight = false,
+}: {
+  title: string;
+  hint: string;
+  entries: RankingEntry[];
+  metric: RankingMetric;
+  colorOf: (userId: string) => string;
+  showWeight?: boolean;
+}) {
+  const theme = useTheme();
+  return (
+    <Card style={styles.rankingCard}>
+      <View>
+        <ThemedText type="smallBold">{title}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {hint}
+        </ThemedText>
+      </View>
+      {entries.length === 0 ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          No data yet.
+        </ThemedText>
+      ) : (
+        entries.map((e, i) => {
+          const value = metric === 'kg' ? e.changeKg : e.pctChange;
+          const color = value < 0 ? theme.success : value > 0 ? theme.text : theme.textSecondary;
+          return (
+            <Row key={e.userId} style={[styles.rankRow, e.isMe && { backgroundColor: theme.backgroundSelected }]}>
+              <ThemedText style={styles.rank}>{MEDALS[i] ?? `${i + 1}`}</ThemedText>
+              <View style={[styles.dot, { backgroundColor: colorOf(e.userId) }]} />
+              <View style={styles.flex}>
+                <ThemedText type="smallBold">
+                  {e.displayName}
+                  {e.isMe ? ' (you)' : ''}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {showWeight
+                    ? e.currentWeightKg !== null
+                      ? `Now ${formatKg(e.currentWeightKg)}`
+                      : ''
+                    : `${e.fromDate} → ${e.toDate}`}
+                </ThemedText>
+              </View>
+              <ThemedText type="smallBold" style={{ color }}>
+                {metric === 'kg' ? formatChangeKg(e.changeKg) : formatPct(e.pctChange)}
+              </ThemedText>
+            </Row>
+          );
+        })
+      )}
+    </Card>
   );
 }
 
@@ -92,9 +241,9 @@ function MenuButton({ open, onPress }: { open: boolean; onPress: () => void }) {
       hitSlop={12}
       style={({ pressed }) => [
         styles.menuButton,
-        { backgroundColor: open ? theme.backgroundSelected : 'transparent', opacity: pressed ? 0.6 : 1 },
+        { backgroundColor: open ? theme.backgroundSelected : theme.backgroundElement, opacity: pressed ? 0.6 : 1 },
       ]}>
-      <ThemedText type="smallBold" style={{ fontSize: 20, lineHeight: 22 }}>
+      <ThemedText type="smallBold" style={styles.menuIcon}>
         ⋯
       </ThemedText>
     </Pressable>
@@ -134,7 +283,7 @@ function GroupMenu({ group }: { group: Group }) {
   }
 
   return (
-    <View style={[styles.menu, { borderColor: theme.border, backgroundColor: theme.background }]}>
+    <View style={[styles.menu, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}>
       <ThemedText type="small" themeColor="textSecondary">
         Invite code
       </ThemedText>
@@ -143,67 +292,20 @@ function GroupMenu({ group }: { group: Group }) {
       </ThemedText>
       <Button title="Invite friends" variant="secondary" onPress={share} />
       <Notice message={error} />
-      <Button
-        title={group.isOwner ? 'Delete group' : 'Leave group'}
-        variant="danger"
-        onPress={leaveOrDelete}
-        loading={busy}
-      />
+      <Button title={group.isOwner ? 'Delete group' : 'Leave group'} variant="danger" onPress={leaveOrDelete} loading={busy} />
     </View>
   );
 }
 
-function LeaderboardRow({ entry, rank }: { entry: LeaderboardEntry; rank: number | null }) {
-  const theme = useTheme();
-  const lost = entry.changeKg !== null && entry.changeKg < 0;
-  const changeColor = entry.changeKg === null ? theme.textSecondary : lost ? theme.success : theme.text;
-
-  return (
-    <Row style={[styles.row, entry.isMe && { backgroundColor: theme.backgroundSelected }]}>
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.rank}>
-        {rank ?? '–'}
-      </ThemedText>
-      <View style={styles.who}>
-        <ThemedText type="smallBold">
-          {entry.displayName}
-          {entry.isMe ? ' (you)' : ''}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {entry.currentWeightKg !== null ? formatKg(entry.currentWeightKg) : 'No weigh-ins yet'}
-          {entry.lastWeighedOn ? ` · ${entry.lastWeighedOn}` : ''}
-        </ThemedText>
-      </View>
-      {entry.changeKg === null || entry.pctChange === null ? (
-        <ThemedText type="small" themeColor="textSecondary">
-          Not enough data
-        </ThemedText>
-      ) : (
-        <View style={styles.change}>
-          <ThemedText type="smallBold" style={{ color: changeColor }}>
-            {formatPct(entry.pctChange)}
-          </ThemedText>
-          <ThemedText type="small" style={{ color: changeColor }}>
-            {formatChangeKg(entry.changeKg)}
-          </ThemedText>
-        </View>
-      )}
-    </Row>
-  );
-}
-
 const styles = StyleSheet.create({
-  board: { gap: Spacing.two },
-  header: { justifyContent: 'space-between', flexWrap: 'nowrap' },
-  menuButton: { borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  flex: { flex: 1 },
+  section: { marginTop: Spacing.two, letterSpacing: 1 },
+  rankingCard: { gap: Spacing.two },
+  rankRow: { flexWrap: 'nowrap', paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: Spacing.two },
+  rank: { width: 28, textAlign: 'center' },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  menuButton: { borderRadius: 999, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
+  menuIcon: { fontSize: 22, lineHeight: 26 },
   menu: { borderWidth: 1, borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.two },
   code: { letterSpacing: 4, textAlign: 'center' },
-  row: {
-    flexWrap: 'nowrap',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    borderRadius: Spacing.two,
-  },
-  rank: { width: 24, textAlign: 'center' },
-  who: { flex: 1 },
-  change: { alignItems: 'flex-end' },
 });

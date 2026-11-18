@@ -60,3 +60,44 @@ export function formatPct(pct: number): string {
   if (pct === 0) return '±0.0%';
   return `${pct > 0 ? '+' : '−'}${Math.abs(pct).toFixed(1)}%`;
 }
+
+/** Least-squares straight line through the points, or null if there's no slope to fit. */
+export function linearTrend(points: { x: number; y: number }[]): { slope: number; intercept: number } | null {
+  const n = points.length;
+  if (n < 2) return null;
+  const meanX = points.reduce((s, p) => s + p.x, 0) / n;
+  const meanY = points.reduce((s, p) => s + p.y, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (const p of points) {
+    sxy += (p.x - meanX) * (p.y - meanY);
+    sxx += (p.x - meanX) ** 2;
+  }
+  if (sxx === 0) return null;
+  const slope = sxy / sxx;
+  return { slope, intercept: meanY - slope * meanX };
+}
+
+type Rankable = {
+  category: string;
+  rankedBy: 'both' | 'kg' | 'pct';
+  changeKg: number;
+  pctChange: number;
+  displayName: string;
+};
+
+/**
+ * One ranking: the entries for `category` that apply to `metric`, sorted with
+ * the biggest loss first (most negative), ties broken by name.
+ */
+export function rankingFor<T extends Rankable>(entries: T[], category: string, metric: 'kg' | 'pct'): T[] {
+  const value = (e: T) => (metric === 'kg' ? e.changeKg : e.pctChange);
+  return entries
+    .filter((e) => e.category === category && (e.rankedBy === 'both' || e.rankedBy === metric))
+    .sort((a, b) => value(a) - value(b) || a.displayName.localeCompare(b.displayName));
+}
+
+/** Days since 1970-01-01 for a YYYY-MM-DD date (handy as a chart x value). */
+export function dayNumber(date: string): number {
+  return Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+}

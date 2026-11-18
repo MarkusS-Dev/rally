@@ -6,6 +6,8 @@ import {
   formatChangeKg,
   formatPct,
   goalProgress,
+  linearTrend,
+  rankingFor,
   weeklyChangeKg,
 } from '../src/lib/stats';
 import { normalizeTime, validateSignIn, validateSignUp } from '../src/lib/validation';
@@ -90,5 +92,60 @@ describe('normalizeTime', () => {
     expect(normalizeTime('24:00')).toBeNull();
     expect(normalizeTime('7:5')).toBeNull();
     expect(normalizeTime('seven')).toBeNull();
+  });
+});
+
+describe('linearTrend', () => {
+  it('fits a straight line', () => {
+    const t = linearTrend([
+      { x: 0, y: 100 },
+      { x: 1, y: 99 },
+      { x: 2, y: 98 },
+    ]);
+    expect(t?.slope).toBeCloseTo(-1);
+    expect(t?.intercept).toBeCloseTo(100);
+  });
+
+  it('smooths noise', () => {
+    const t = linearTrend([
+      { x: 0, y: 80 },
+      { x: 1, y: 81 },
+      { x: 2, y: 79 },
+      { x: 3, y: 80 },
+    ]);
+    expect(t?.slope).toBeCloseTo(-0.2);
+  });
+
+  it('needs two different x values', () => {
+    expect(linearTrend([{ x: 1, y: 1 }])).toBeNull();
+    expect(linearTrend([{ x: 1, y: 1 }, { x: 1, y: 2 }])).toBeNull();
+  });
+});
+
+describe('rankingFor', () => {
+  const e = (displayName: string, category: string, rankedBy: 'both' | 'kg' | 'pct', changeKg: number, pctChange: number) => ({
+    displayName,
+    category,
+    rankedBy,
+    changeKg,
+    pctChange,
+  });
+  const entries = [
+    e('Big', 'week', 'both', -2, -1.5), // heavy person: more kg, less %
+    e('Small', 'week', 'both', -1.5, -2.3), // light person: less kg, more %
+    e('Gainer', 'week', 'both', 0.4, 0.5),
+    e('Big', 'best_day', 'kg', -1.7, -1.2),
+    e('Big', 'best_day', 'pct', -1.5, -1.3),
+    e('Other', 'month', 'both', -9, -9),
+  ];
+
+  it('ranks the same people differently by kg and by %', () => {
+    expect(rankingFor(entries, 'week', 'kg').map((x) => x.displayName)).toEqual(['Big', 'Small', 'Gainer']);
+    expect(rankingFor(entries, 'week', 'pct').map((x) => x.displayName)).toEqual(['Small', 'Big', 'Gainer']);
+  });
+
+  it('uses the record row that belongs to the metric', () => {
+    expect(rankingFor(entries, 'best_day', 'kg')).toEqual([entries[3]]);
+    expect(rankingFor(entries, 'best_day', 'pct')).toEqual([entries[4]]);
   });
 });
