@@ -3,7 +3,7 @@ import { supabase } from '../supabase';
 import { isValid, normalizeInviteCode, validateGroupName, validateInviteCode } from '../validation';
 import { ApiError, unwrap } from './errors';
 import { currentUserId } from './session';
-import type { Group, GroupMember, LeaderboardEntry } from './types';
+import type { Group, GroupMember, LeaderboardEntry, LeaderboardPeriod } from './types';
 
 type GroupFields = Pick<GroupRow, 'id' | 'name' | 'invite_code' | 'created_by'>;
 
@@ -71,14 +71,22 @@ export async function listGroupMembers(groupId: string): Promise<GroupMember[]> 
   });
 }
 
-/** % change per member since they joined. Raw weights never leave the database. */
-export async function getLeaderboard(groupId: string): Promise<LeaderboardEntry[]> {
+/** Each member's current weight and change over the period, most % lost first. */
+export async function getLeaderboard(
+  groupId: string,
+  period: LeaderboardPeriod = 'total',
+): Promise<LeaderboardEntry[]> {
   const me = await currentUserId();
-  const rows = unwrap<LeaderboardRow[]>(await supabase.rpc('group_leaderboard', { gid: groupId }));
+  const rows = unwrap<LeaderboardRow[]>(
+    await supabase.rpc('group_leaderboard', { gid: groupId, period }),
+  );
+  const num = (v: number | string | null) => (v === null ? null : Number(v));
   return rows.map((r) => ({
     userId: r.user_id,
     displayName: r.display_name,
-    pctChange: r.pct_change === null ? null : Number(r.pct_change),
+    currentWeightKg: num(r.current_weight_kg),
+    changeKg: num(r.change_kg),
+    pctChange: num(r.pct_change),
     lastWeighedOn: r.last_weighed_on,
     weighInCount: Number(r.weigh_in_count),
     isMe: r.user_id === me,

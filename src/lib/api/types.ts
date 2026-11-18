@@ -33,13 +33,11 @@ export type MySettings = {
   displayName: string;
   goalWeightKg: number | null;
   unit: WeightUnit;
-  reminderTime: string | null; // HH:MM
 };
 
 export type UpdateSettingsRequest = {
   goalWeight: number | null; // in `unit`
   unit: WeightUnit;
-  reminderTime: string | null; // HH:MM
 };
 
 export type Group = {
@@ -55,10 +53,14 @@ export type GroupMember = {
   joinedAt: string;
 };
 
+export type LeaderboardPeriod = 'week' | 'month' | 'total';
+
 export type LeaderboardEntry = {
   userId: string;
   displayName: string;
-  pctChange: number | null; // negative = lost weight
+  currentWeightKg: number | null;
+  changeKg: number | null; // negative = lost weight; null = not enough data
+  pctChange: number | null;
   lastWeighedOn: string | null;
   weighInCount: number;
   isMe: boolean;

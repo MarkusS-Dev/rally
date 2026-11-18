@@ -1,6 +1,7 @@
 // Daily "time to weigh in" reminder, as a repeating local notification.
 // Local notifications work in Expo Go; no push server is involved.
 
+import 'expo-sqlite/localStorage/install';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -17,6 +18,24 @@ if (Platform.OS !== 'web') {
   });
 }
 
+// The chosen time is stored on this phone only: each device has its own
+// notification schedule, so there's nothing to sync to the server.
+const STORAGE_KEY = 'rally.reminderTime';
+
+/** Saved reminder time ("HH:MM") for this phone, or null if off. */
+export function getSavedReminderTime(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveReminderTime(time: string | null) {
+  if (time) localStorage.setItem(STORAGE_KEY, time);
+  else localStorage.removeItem(STORAGE_KEY);
+}
+
 export type ReminderResult = 'scheduled' | 'off' | 'denied' | 'unsupported';
 
 /**
@@ -30,6 +49,7 @@ export async function applyReminder(
 ): Promise<ReminderResult> {
   if (Platform.OS === 'web') return 'unsupported';
 
+  saveReminderTime(time);
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (!time) return 'off';
 

@@ -20,7 +20,7 @@ export type UserSettingsRow = Audit & {
   user_id: string;
   goal_weight_kg: number | null;
   unit: 'kg' | 'lb';
-  reminder_time: string | null; // "HH:MM:SS"
+  reminder_time: string | null; // unused: reminders live on the device
 };
 
 export type WeighInRow = Audit & {
@@ -46,6 +46,8 @@ export type GroupMemberRow = {
 export type LeaderboardRow = {
   user_id: string;
   display_name: string;
+  current_weight_kg: number | null;
+  change_kg: number | null;
   pct_change: number | null;
   last_weighed_on: string | null;
   weigh_in_count: number;

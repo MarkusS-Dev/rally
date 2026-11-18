@@ -1,194 +1,292 @@
+// Home: asks for today's weight first (if not logged yet), then shows the trend.
+
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Button, Card, Chip, Field, Loading, Notice, Row, Screen } from '@/components/ui';
+import { WeighInPrompt } from '@/components/weigh-in-prompt';
+import { WeightChart } from '@/components/weight-chart';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api/errors';
 import { getMySettings } from '@/lib/api/settings';
 import type { WeighIn } from '@/lib/api/types';
-import { createWeighIn, getFirstWeighIn, listWeighIns, updateWeighIn } from '@/lib/api/weigh-ins';
-import { addDays, formatChangeKg, formatKg, goalProgress, weeklyChangeKg } from '@/lib/stats';
-import { localToday, type FieldErrors } from '@/lib/validation';
+import {
+  deleteWeighIn,
+  getFirstWeighIn,
+  listAllWeighInsSince,
+  listWeighIns,
+  updateWeighIn,
+} from '@/lib/api/weigh-ins';
+import { confirm } from '@/lib/confirm';
+import { addDays, formatChangeKg, formatKg, goalProgress } from '@/lib/stats';
+import { localToday } from '@/lib/validation';
 
-async function loadToday() {
+const RANGES = [
+  { label: 'Week', days: 7 },
+  { label: '30 days', days: 30 },
+  { label: '90 days', days: 90 },
+  { label: 'All', days: null },
+] as const;
+type RangeLabel = (typeof RANGES)[number]['label'];
+
+async function loadTrend(days: number | null) {
   const today = localToday();
-  const [settings, recent, first] = await Promise.all([
+  const [settings, recent, first, points] = await Promise.all([
     getMySettings(),
-    listWeighIns({ pageSize: 100, from: addDays(today, -60) }),
+    listWeighIns({ pageSize: 2 }),
     getFirstWeighIn(),
+    listAllWeighInsSince(days === null ? undefined : addDays(today, -days)),
   ]);
-  return { settings, recent: recent.items, first, today };
+  const todays = recent.items.find((w) => w.measuredOn === today) ?? null;
+  const previous = recent.items.find((w) => w.measuredOn < today) ?? null;
+  return { today, todays, previous, first, points, goalKg: settings.goalWeightKg };
 }
 
-export default function TodayScreen() {
-  const query = useFocusQuery(loadToday);
+export default function TrendScreen() {
+  const [range, setRange] = useState<RangeLabel>('30 days');
+  const days = RANGES.find((r) => r.label === range)!.days;
+  const query = useFocusQuery(() => loadTrend(days), range);
+  const [dismissed, setDismissed] = useState(false);
+  const [changingToday, setChangingToday] = useState(false);
 
   if (!query.data) {
     return (
-      <Screen title="Today">
+      <Screen title="Trend">
         {query.status === 'error' ? <Notice message={query.error.message} /> : <Loading />}
       </Screen>
     );
   }
 
-  const { settings, recent, first, today } = query.data;
-  const latest: WeighIn | undefined = recent[0];
+  const { today, todays, previous, first, points, goalKg } = query.data;
+  const showPrompt = changingToday || (!todays && !dismissed);
+
+  // Step 1: weigh in. Step 2 (after saving or "Not now"): the trend.
+  if (showPrompt) {
+    return (
+      <Screen title="Trend">
+        <WeighInPrompt
+          key={todays?.id ?? 'new'}
+          previous={previous}
+          todays={changingToday ? todays : null}
+          today={today}
+          onSaved={() => {
+            setChangingToday(false);
+            query.reload();
+          }}
+          onDismiss={() => (changingToday ? setChangingToday(false) : setDismissed(true))}
+        />
+      </Screen>
+    );
+  }
+
+  const latest = todays ?? previous;
 
   return (
-    <Screen title={`Hi, ${settings.displayName}`}>
+    <Screen title="Trend">
       {query.status === 'error' && <Notice message={query.error.message} />}
-      <Summary latest={latest} recent={recent} first={first} goalKg={settings.goalWeightKg} />
-      <LogWeight recent={recent} today={today} onSaved={query.reload} />
+
+      {todays ? (
+        <Card>
+          <Row style={styles.spread}>
+            <View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Today ✓
+              </ThemedText>
+              <ThemedText type="subtitle">{formatKg(todays.weightKg)}</ThemedText>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => setChangingToday(true)} hitSlop={12}>
+              <ThemedText type="linkPrimary">Change</ThemedText>
+            </Pressable>
+          </Row>
+          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} startedOn={first.measuredOn} />}
+        </Card>
+      ) : (
+        <Card>
+          <ThemedText themeColor="textSecondary">You haven&apos;t weighed in today.</ThemedText>
+          <Button title="Weigh in" onPress={() => setDismissed(false)} />
+          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} startedOn={first.measuredOn} />}
+        </Card>
+      )}
+
+      <Row>
+        {RANGES.map((r) => (
+          <Chip key={r.label} label={r.label} selected={range === r.label} onPress={() => setRange(r.label)} />
+        ))}
+      </Row>
+
+      {points.length === 0 ? (
+        <Card>
+          <ThemedText themeColor="textSecondary">No weigh-ins in this period yet.</ThemedText>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <RangeSummary points={points} />
+            <WeightChart points={points} goalKg={goalKg} />
+          </Card>
+          <Card style={styles.list}>
+            {[...points].reverse().map((w) => (
+              <HistoryRow key={w.id} item={w} onChanged={query.reload} />
+            ))}
+          </Card>
+        </>
+      )}
     </Screen>
   );
 }
 
-function Summary({
-  latest,
-  recent,
-  first,
+function GoalBar({
+  startKg,
+  latestKg,
   goalKg,
+  startedOn,
 }: {
-  latest?: WeighIn;
-  recent: WeighIn[];
-  first: WeighIn | null;
-  goalKg: number | null;
+  startKg: number;
+  latestKg: number;
+  goalKg: number;
+  startedOn: string;
 }) {
   const theme = useTheme();
-
-  if (!latest) {
-    return (
-      <Card>
-        <ThemedText type="smallBold">Welcome to Rally!</ThemedText>
-        <ThemedText themeColor="textSecondary">
-          Log your first weight below. Friends in your groups will only ever see your % change, never your
-          actual weight.
-        </ThemedText>
-      </Card>
-    );
-  }
-
-  const weekly = weeklyChangeKg(recent);
-  const progress = goalKg != null && first ? goalProgress(first.weightKg, latest.weightKg, goalKg) : null;
-
+  const progress = goalProgress(startKg, latestKg, goalKg);
+  if (!progress) return null;
   return (
-    <Card>
-      <View>
-        <ThemedText themeColor="textSecondary" type="small">
-          Latest · {latest.measuredOn}
+    <View style={styles.goal}>
+      <Row style={styles.spread}>
+        <ThemedText type="smallBold">Goal {formatKg(goalKg)}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {progress.reached ? 'Reached! 🎉' : `${formatKg(progress.remainingKg)} to go`}
         </ThemedText>
-        <ThemedText type="title">{formatKg(latest.weightKg)}</ThemedText>
-        {weekly !== null && (
-          <ThemedText themeColor="textSecondary">{formatChangeKg(weekly)} in the last week</ThemedText>
-        )}
+      </Row>
+      <View
+        style={[styles.track, { backgroundColor: theme.backgroundSelected }]}
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.fraction * 100) }}>
+        <View
+          style={[
+            styles.fill,
+            {
+              width: `${progress.fraction * 100}%`,
+              backgroundColor: progress.reached ? theme.success : theme.accent,
+            },
+          ]}
+        />
       </View>
-
-      {goalKg == null ? (
-        <ThemedText themeColor="textSecondary" type="small">
-          Set a goal weight in Settings to track your progress.
-        </ThemedText>
-      ) : progress ? (
-        <View style={styles.goal}>
-          <Row style={styles.goalLabels}>
-            <ThemedText type="smallBold">Goal {formatKg(goalKg)}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {progress.reached ? 'Reached! 🎉' : `${formatKg(progress.remainingKg)} to go`}
-            </ThemedText>
-          </Row>
-          <View
-            style={[styles.track, { backgroundColor: theme.backgroundSelected }]}
-            accessibilityRole="progressbar"
-            accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.fraction * 100) }}>
-            <View
-              style={[
-                styles.fill,
-                { width: `${progress.fraction * 100}%`, backgroundColor: progress.reached ? theme.success : theme.accent },
-              ]}
-            />
-          </View>
-          <ThemedText type="small" themeColor="textSecondary">
-            Started at {formatKg(first!.weightKg)} on {first!.measuredOn}
-          </ThemedText>
-        </View>
-      ) : null}
-    </Card>
+      <ThemedText type="small" themeColor="textSecondary">
+        Started at {formatKg(startKg)} on {startedOn}
+      </ThemedText>
+    </View>
   );
 }
 
-function LogWeight({ recent, today, onSaved }: { recent: WeighIn[]; today: string; onSaved: () => void }) {
-  const yesterday = addDays(today, -1);
-  const [date, setDate] = useState(today);
-  const [weight, setWeight] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [message, setMessage] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
+function RangeSummary({ points }: { points: WeighIn[] }) {
+  const theme = useTheme();
+  const change = Math.round((points[points.length - 1].weightKg - points[0].weightKg) * 10) / 10;
+  return (
+    <Row style={styles.spread}>
+      <View>
+        <ThemedText type="small" themeColor="textSecondary">
+          Change
+        </ThemedText>
+        <ThemedText type="smallBold" style={change < 0 ? { color: theme.success } : undefined}>
+          {formatChangeKg(change)}
+        </ThemedText>
+      </View>
+      <View>
+        <ThemedText type="small" themeColor="textSecondary">
+          Lowest
+        </ThemedText>
+        <ThemedText type="smallBold">{formatKg(Math.min(...points.map((p) => p.weightKg)))}</ThemedText>
+      </View>
+      <View>
+        <ThemedText type="small" themeColor="textSecondary">
+          Weigh-ins
+        </ThemedText>
+        <ThemedText type="smallBold">{points.length}</ThemedText>
+      </View>
+    </Row>
+  );
+}
 
-  const existing = recent.find((w) => w.measuredOn === date);
+/** One weigh-in; tap to edit or delete it. */
+function HistoryRow({ item, onChanged }: { item: WeighIn; onChanged: () => void }) {
+  const theme = useTheme();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(item.weightKg.toFixed(1));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string[] | undefined>();
 
   async function save() {
     setBusy(true);
-    setErrors({});
-    setMessage(null);
-    setSaved(null);
-    // Accept "81,4" as well as "81.4".
-    const value = Number(weight.replace(',', '.'));
+    setError(undefined);
     try {
-      if (existing) {
-        await updateWeighIn(existing.id, { weight: value, unit: 'kg' });
-      } else {
-        await createWeighIn({ weight: value, unit: 'kg', measuredOn: date }, today);
-      }
-      setWeight('');
-      setSaved(existing ? 'Updated.' : 'Logged. Nice work!');
-      onSaved();
+      await updateWeighIn(item.id, { weight: Number(value.replace(',', '.')), unit: 'kg' });
+      setEditing(false);
+      onChanged();
     } catch (e) {
-      if (e instanceof ApiError) {
-        setErrors(e.fieldErrors);
-        if (e.kind !== 'validation') setMessage(e.message);
-      } else {
-        setMessage('Could not save. Check your connection.');
-      }
+      setError(e instanceof ApiError ? (e.fieldErrors.weight ?? [e.message]) : [String(e)]);
     } finally {
       setBusy(false);
     }
   }
 
+  async function remove() {
+    if (!(await confirm('Delete weigh-in?', `${formatKg(item.weightKg)} on ${item.measuredOn}`, 'Delete'))) return;
+    setBusy(true);
+    try {
+      await deleteWeighIn(item.id);
+      onChanged();
+    } catch (e) {
+      setError([e instanceof Error ? e.message : String(e)]);
+      setBusy(false);
+    }
+  }
+
   return (
-    <Card>
-      <ThemedText type="smallBold">{existing ? 'Update weight' : 'Log weight'}</ThemedText>
-      <Row>
-        <Chip label="Today" selected={date === today} onPress={() => setDate(today)} />
-        <Chip label="Yesterday" selected={date === yesterday} onPress={() => setDate(yesterday)} />
-      </Row>
-      {existing && (
-        <ThemedText type="small" themeColor="textSecondary">
-          You logged {formatKg(existing.weightKg)} for this day. Saving replaces it.
+    <View style={[styles.row, { borderBottomColor: theme.border }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Edit or delete this weigh-in"
+        onPress={() => setEditing((e) => !e)}
+        style={styles.rowHeader}>
+        <ThemedText>{item.measuredOn}</ThemedText>
+        <ThemedText type="smallBold">
+          {formatKg(item.weightKg)}
+          {item.lastModifiedAt ? (
+            <ThemedText type="small" themeColor="textSecondary">
+              {' '}
+              · edited
+            </ThemedText>
+          ) : null}
         </ThemedText>
+      </Pressable>
+      {editing && (
+        <View style={styles.editor}>
+          <Field label="Weight (kg)" value={value} onChangeText={setValue} keyboardType="decimal-pad" errors={error} />
+          <Row>
+            <View style={styles.flex}>
+              <Button title="Save" onPress={save} loading={busy} />
+            </View>
+            <View style={styles.flex}>
+              <Button title="Delete" variant="danger" onPress={remove} disabled={busy} />
+            </View>
+          </Row>
+        </View>
       )}
-      <Field
-        label="Weight (kg)"
-        placeholder={recent[0] ? recent[0].weightKg.toFixed(1) : 'e.g. 80.5'}
-        value={weight}
-        onChangeText={setWeight}
-        keyboardType="decimal-pad"
-        returnKeyType="done"
-        onSubmitEditing={save}
-        errors={[...(errors.weight ?? []), ...(errors.measuredOn ?? [])]}
-      />
-      <Notice message={message} />
-      <Notice message={saved} tone="info" />
-      <Button title={existing ? 'Update' : 'Save'} onPress={save} loading={busy} disabled={!weight.trim()} />
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  spread: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   goal: { gap: Spacing.two },
-  goalLabels: { justifyContent: 'space-between' },
   track: { height: 10, borderRadius: 5, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
+  list: { gap: 0, paddingVertical: Spacing.one },
+  row: { borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: Spacing.two },
+  rowHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.two },
+  editor: { gap: Spacing.two, paddingBottom: Spacing.two },
+  flex: { flex: 1 },
 });

@@ -4,7 +4,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 -- Pin the clock, like the course's TestSystemClock.
 set local app.fixed_now = '2022-01-01T00:00:00Z';
@@ -50,7 +50,13 @@ select is((select count(*)::int from public.profiles), 2,
 select is(
   (select pct_change from public.group_leaderboard('d0000000-0000-0000-0000-000000000004')
     where user_id = 'a0000000-0000-0000-0000-000000000001'),
-  -5.0::numeric, 'leaderboard shows Ann''s % change (100 → 95 kg = -5.0%)');
+  -5.0::numeric, 'total: Ann''s % change since her first weigh-in (100 → 95 kg = -5.0%)');
+
+select results_eq(
+  $$select current_weight_kg, change_kg from public.group_leaderboard('d0000000-0000-0000-0000-000000000004', 'week')
+    where user_id = 'a0000000-0000-0000-0000-000000000001'$$,
+  $$values (95.00::numeric, -5.00::numeric)$$,
+  'week: group-mates see current weight and kg change');
 
 select is(
   (select pct_change from public.group_leaderboard('d0000000-0000-0000-0000-000000000004')
@@ -59,9 +65,13 @@ select is(
 
 select is(
   (select array_to_string(proargnames, ',') from pg_proc
-    where oid = 'public.group_leaderboard(uuid)'::regprocedure),
-  'gid,user_id,display_name,pct_change,last_weighed_on,weigh_in_count',
-  'leaderboard returns exactly these columns, and no raw weights');
+    where oid = 'public.group_leaderboard(uuid, text)'::regprocedure),
+  'gid,period,user_id,display_name,current_weight_kg,change_kg,pct_change,last_weighed_on,weigh_in_count',
+  'leaderboard returns exactly these columns');
+
+select throws_ok(
+  $$select * from public.group_leaderboard('d0000000-0000-0000-0000-000000000004', 'year')$$,
+  'P0001', 'invalid period', 'unknown periods are rejected');
 
 -- Audit fields: set by the trigger from the pinned clock and the JWT.
 insert into public.weigh_ins (weight_kg, measured_on) values (94, '2022-01-01');

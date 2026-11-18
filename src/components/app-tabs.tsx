@@ -12,12 +12,7 @@ export default function AppTabs() {
       tintColor={theme.accent}
       labelStyle={{ selected: { color: theme.accent } }}>
       <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="scalemass" md="monitor_weight" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="history">
-        <NativeTabs.Trigger.Label>History</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Trend</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="chart.xyaxis.line" md="show_chart" />
       </NativeTabs.Trigger>
 

@@ -14,10 +14,7 @@ export default function AppTabs() {
       <TabSlot style={{ height: '100%' }} />
       <TabList style={[styles.bar, { backgroundColor: theme.backgroundElement }]}>
         <TabTrigger name="index" href="/" asChild>
-          <TabButton>Today</TabButton>
-        </TabTrigger>
-        <TabTrigger name="history" href="/history" asChild>
-          <TabButton>History</TabButton>
+          <TabButton>Trend</TabButton>
         </TabTrigger>
         <TabTrigger name="groups" href="/groups" asChild>
           <TabButton>Groups</TabButton>
