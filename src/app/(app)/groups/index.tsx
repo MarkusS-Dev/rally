@@ -1,16 +1,32 @@
-import { Link, router } from 'expo-router';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from "expo-router";
+import { useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Field, Loading, Notice, Row, Screen } from '@/components/ui';
-import { Spacing } from '@/constants/theme';
-import { useFocusQuery } from '@/hooks/use-focus-query';
-import { useTheme } from '@/hooks/use-theme';
-import { ApiError } from '@/lib/api/errors';
-import { createGroup, joinGroup, listMyGroups } from '@/lib/api/groups';
-import type { Group } from '@/lib/api/types';
+import { ThemedText } from "@/components/themed-text";
+import {
+  Button,
+  Card,
+  Chip,
+  Field,
+  Loading,
+  Notice,
+  Row,
+  Screen,
+} from "@/components/ui";
+import { Spacing } from "@/constants/theme";
+import { useFocusQuery } from "@/hooks/use-focus-query";
+import { useTheme } from "@/hooks/use-theme";
+import { ApiError } from "@/lib/api/errors";
+import { createGroup, joinGroup, listMyGroups } from "@/lib/api/groups";
+import type { Group } from "@/lib/api/types";
 
 export default function GroupsScreen() {
   const query = useFocusQuery(listMyGroups);
@@ -20,13 +36,18 @@ export default function GroupsScreen() {
     <Screen
       title="Groups"
       action={
-        <Pressable accessibilityRole="button" onPress={() => setManageOpen(true)} hitSlop={12}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setManageOpen(true)}
+          hitSlop={12}
+        >
           <ThemedText type="linkPrimary">Manage groups</ThemedText>
         </Pressable>
-      }>
-      {query.status === 'error' && <Notice message={query.error.message} />}
+      }
+    >
+      {query.status === "error" && <Notice message={query.error.message} />}
       {!query.data ? (
-        query.status === 'loading' && <Loading />
+        query.status === "loading" && <Loading />
       ) : query.data.length === 0 ? (
         <Card>
           <ThemedText themeColor="textSecondary">No groups yet.</ThemedText>
@@ -35,7 +56,10 @@ export default function GroupsScreen() {
         query.data.map((g) => <GroupLink key={g.id} group={g} />)
       )}
 
-      <ManageGroupsModal visible={manageOpen} onClose={() => setManageOpen(false)} />
+      <ManageGroupsModal
+        visible={manageOpen}
+        onClose={() => setManageOpen(false)}
+      />
     </Screen>
   );
 }
@@ -43,48 +67,60 @@ export default function GroupsScreen() {
 function GroupLink({ group }: { group: Group }) {
   const theme = useTheme();
   return (
-    <Link href={{ pathname: '/groups/[id]', params: { id: group.id } }} asChild>
-      <Pressable
-        accessibilityRole="link"
-        style={({ pressed }) => [
-          styles.groupLink,
-          { backgroundColor: theme.backgroundElement, borderColor: theme.accent, opacity: pressed ? 0.75 : 1 },
-        ]}>
-        <View style={styles.groupText}>
-          <ThemedText type="smallBold" style={styles.groupName}>
-            {group.name}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {group.isOwner ? 'Owner' : 'Member'}
-          </ThemedText>
-        </View>
-        <ThemedText style={[styles.chevron, { color: theme.accent }]}>
-          ›
+    <Pressable
+      accessibilityRole="button"
+      onPress={() =>
+        router.push({ pathname: "/groups/[id]", params: { id: group.id } })
+      }
+      style={({ pressed }) => [
+        styles.groupLink,
+        {
+          backgroundColor: theme.backgroundElement,
+          borderColor: theme.accent,
+          opacity: pressed ? 0.75 : 1,
+        },
+      ]}
+    >
+      <View style={styles.groupText}>
+        <ThemedText type="smallBold" style={styles.groupName}>
+          {group.name}
         </ThemedText>
-      </Pressable>
-    </Link>
+        <ThemedText type="small" themeColor="textSecondary">
+          {group.isOwner ? "Owner" : "Member"}
+        </ThemedText>
+      </View>
+      <ThemedText style={[styles.chevron, { color: theme.accent }]}>
+        ›
+      </ThemedText>
+    </Pressable>
   );
 }
 
-type Tab = 'join' | 'create';
+type Tab = "join" | "create";
 
 /** Popup with "Join a group" and "Create a group". */
-function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function ManageGroupsModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>('join');
-  const [value, setValue] = useState('');
+  const [tab, setTab] = useState<Tab>("join");
+  const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[] | undefined>();
 
   function switchTab(next: Tab) {
     setTab(next);
-    setValue('');
+    setValue("");
     setErrors(undefined);
   }
 
   function close() {
-    switchTab('join');
+    switchTab("join");
     onClose();
   }
 
@@ -92,11 +128,12 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
     setBusy(true);
     setErrors(undefined);
     try {
-      const group = tab === 'join' ? await joinGroup(value) : await createGroup(value);
+      const group =
+        tab === "join" ? await joinGroup(value) : await createGroup(value);
       close();
-      router.push({ pathname: '/groups/[id]', params: { id: group.id } });
+      router.push({ pathname: "/groups/[id]", params: { id: group.id } });
     } catch (e) {
-      const field = tab === 'join' ? 'inviteCode' : 'name';
+      const field = tab === "join" ? "inviteCode" : "name";
       if (e instanceof ApiError) setErrors(e.fieldErrors[field] ?? [e.message]);
       else setErrors([e instanceof Error ? e.message : String(e)]);
     } finally {
@@ -105,14 +142,30 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close" />
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={close}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={styles.backdrop}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={close}
+          accessibilityLabel="Close"
+        />
         <View
           style={[
             styles.sheet,
-            { backgroundColor: theme.background, paddingBottom: insets.bottom + Spacing.four },
-          ]}>
+            {
+              backgroundColor: theme.background,
+              paddingBottom: insets.bottom + Spacing.four,
+            },
+          ]}
+        >
           <Row style={styles.sheetHeader}>
             <ThemedText type="smallBold" style={styles.sheetTitle}>
               Manage groups
@@ -123,23 +176,36 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
           </Row>
 
           <Row>
-            <Chip label="Join a group" selected={tab === 'join'} onPress={() => switchTab('join')} />
-            <Chip label="Create a group" selected={tab === 'create'} onPress={() => switchTab('create')} />
+            <Chip
+              label="Join a group"
+              selected={tab === "join"}
+              onPress={() => switchTab("join")}
+            />
+            <Chip
+              label="Create a group"
+              selected={tab === "create"}
+              onPress={() => switchTab("create")}
+            />
           </Row>
 
           <Field
             key={tab}
-            label={tab === 'join' ? 'Invite code' : 'Group name'}
-            placeholder={tab === 'join' ? 'e.g. C0FFEE42' : 'e.g. Gym Buddies'}
+            label={tab === "join" ? "Invite code" : "Group name"}
+            placeholder={tab === "join" ? "e.g. C0FFEE42" : "e.g. Gym Buddies"}
             value={value}
             onChangeText={setValue}
-            autoCapitalize={tab === 'join' ? 'characters' : 'sentences'}
+            autoCapitalize={tab === "join" ? "characters" : "sentences"}
             autoCorrect={false}
             autoFocus
             onSubmitEditing={submit}
             errors={errors}
           />
-          <Button title={tab === 'join' ? 'Join' : 'Create'} onPress={submit} loading={busy} disabled={!value.trim()} />
+          <Button
+            title={tab === "join" ? "Join" : "Create"}
+            onPress={submit}
+            loading={busy}
+            disabled={!value.trim()}
+          />
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -148,23 +214,32 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
 
 const styles = StyleSheet.create({
   groupLink: {
-    justifyContent: 'center',
+    justifyContent: "center",
     borderRadius: Spacing.three,
     borderWidth: 2,
     paddingVertical: Spacing.four,
     paddingHorizontal: Spacing.five,
   },
-  groupText: { alignItems: 'center', gap: Spacing.one },
+  groupText: { alignItems: "center", gap: Spacing.one },
   // Pinned to the right edge so it doesn't push the centred text off-centre.
-  chevron: { position: 'absolute', right: Spacing.three, fontSize: 28, lineHeight: 30 },
-  groupName: { fontSize: 20, textAlign: 'center' },
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
+  chevron: {
+    position: "absolute",
+    right: Spacing.three,
+    fontSize: 28,
+    lineHeight: 30,
+  },
+  groupName: { fontSize: 20, textAlign: "center" },
+  backdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
   sheet: {
     borderTopLeftRadius: Spacing.four,
     borderTopRightRadius: Spacing.four,
     padding: Spacing.four,
     gap: Spacing.three,
   },
-  sheetHeader: { justifyContent: 'space-between', flexWrap: 'nowrap' },
+  sheetHeader: { justifyContent: "space-between", flexWrap: "nowrap" },
   sheetTitle: { fontSize: 18 },
 });
