@@ -27,7 +27,16 @@ function shortDate(date: string): string {
   return `${Number(d)}/${Number(m)}`;
 }
 
-export function GroupChart({ series, metric }: { series: ChartSeries[]; metric: RankingMetric }) {
+export function GroupChart({
+  series,
+  metric,
+  showWeighIns = true,
+}: {
+  series: ChartSeries[];
+  metric: RankingMetric;
+  /** Off: only the trendlines. */
+  showWeighIns?: boolean;
+}) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
 
@@ -100,17 +109,18 @@ export function GroupChart({ series, metric }: { series: ChartSeries[]; metric: 
               <Line x1={PAD.left} x2={width - PAD.right} y1={y(0)} y2={y(0)} stroke={theme.textSecondary} strokeWidth={1} />
             )}
 
-            {ordered.map((l) => (
-              <Path
-                key={l.userId}
-                d={l.pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.x).toFixed(1)},${y(p.y).toFixed(1)}`).join(' ')}
-                stroke={l.color}
-                strokeWidth={l.isMe ? 2.5 : 1.5}
-                strokeOpacity={0.55}
-                fill="none"
-                strokeLinejoin="round"
-              />
-            ))}
+            {showWeighIns &&
+              ordered.map((l) => (
+                <Path
+                  key={l.userId}
+                  d={l.pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(p.x).toFixed(1)},${y(p.y).toFixed(1)}`).join(' ')}
+                  stroke={l.color}
+                  strokeWidth={l.isMe ? 2.5 : 1.5}
+                  strokeOpacity={0.55}
+                  fill="none"
+                  strokeLinejoin="round"
+                />
+              ))}
             {ordered.map((l) => {
               if (!l.trend) return null;
               const x1 = l.pts[0].x;
@@ -150,9 +160,6 @@ export function GroupChart({ series, metric }: { series: ChartSeries[]; metric: 
           </View>
         ))}
       </View>
-      <ThemedText type="small" themeColor="textSecondary">
-        Solid: weigh-ins · dashed: trend
-      </ThemedText>
     </View>
   );
 }

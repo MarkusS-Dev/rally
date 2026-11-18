@@ -69,11 +69,6 @@ export function WeighInPrompt({
               ) : null}
             </ThemedText>
           )}
-          {!previous && !todays && (
-            <ThemedText type="small" themeColor="textSecondary">
-              Scroll the wheel to your weight.
-            </ThemedText>
-          )}
         </View>
         <WeightWheel value={kg} onChange={setKg} />
       </View>

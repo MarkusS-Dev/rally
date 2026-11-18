@@ -23,10 +23,7 @@ export default function GroupsScreen() {
         query.status === 'loading' && <Loading />
       ) : query.data.length === 0 ? (
         <Card>
-          <ThemedText themeColor="textSecondary">
-            You&apos;re not in a group yet. Create one and share the invite code with your friends, or join
-            theirs.
-          </ThemedText>
+          <ThemedText themeColor="textSecondary">No groups yet.</ThemedText>
         </Card>
       ) : (
         query.data.map((g) => <GroupLink key={g.id} group={g} />)
@@ -52,7 +49,7 @@ function GroupLink({ group }: { group: Group }) {
           {group.name}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {group.isOwner ? 'Owner · ' : ''}Leaderboard and chart ›
+          {group.isOwner ? 'Owner' : 'Member'}
         </ThemedText>
       </Pressable>
     </Link>
@@ -119,12 +116,6 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
             <Chip label="Join a group" selected={tab === 'join'} onPress={() => switchTab('join')} />
             <Chip label="Create a group" selected={tab === 'create'} onPress={() => switchTab('create')} />
           </Row>
-
-          <ThemedText type="small" themeColor="textSecondary">
-            {tab === 'join'
-              ? 'Ask a friend for their group’s 8-character invite code (in the ⋯ menu on their group).'
-              : 'You’ll get an invite code to share with your friends.'}
-          </ThemedText>
 
           <Field
             key={tab}

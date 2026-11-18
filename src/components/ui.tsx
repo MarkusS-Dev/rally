@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -260,4 +261,27 @@ export function Segmented<T extends string>({
 const segmentedStyles = StyleSheet.create({
   track: { flexDirection: 'row', borderRadius: 999, padding: 3 },
   option: { minWidth: 40, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999 },
+});
+
+/** A label with an on/off switch, right-aligned. */
+export function Toggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={toggleStyles.row}>
+      <ThemedText type="small">{label}</ThemedText>
+      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent }} accessibilityLabel={label} />
+    </View>
+  );
+}
+
+const toggleStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: Spacing.two },
 });

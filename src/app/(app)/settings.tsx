@@ -137,9 +137,6 @@ function ReminderForm() {
       <Row style={styles.switchRow}>
         <View style={styles.flex}>
           <ThemedText type="smallBold">Daily reminder</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            A notification on this phone to weigh in
-          </ThemedText>
         </View>
         <Switch value={on} onValueChange={setOn} trackColor={{ true: theme.accent }} accessibilityLabel="Daily reminder" />
       </Row>

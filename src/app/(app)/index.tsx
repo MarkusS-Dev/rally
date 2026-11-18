@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Field, Loading, Notice, Row, Screen } from '@/components/ui';
+import { Button, Card, Chip, Field, Loading, Notice, Row, Screen, Toggle } from '@/components/ui';
 import { WeighInPrompt } from '@/components/weigh-in-prompt';
 import { WeightChart } from '@/components/weight-chart';
 import { Spacing } from '@/constants/theme';
@@ -51,6 +51,7 @@ export default function TrendScreen() {
   const query = useFocusQuery(() => loadTrend(days), range);
   const [dismissed, setDismissed] = useState(false);
   const [changingToday, setChangingToday] = useState(false);
+  const [showWeighIns, setShowWeighIns] = useState(true);
 
   if (!query.data) {
     return (
@@ -101,13 +102,12 @@ export default function TrendScreen() {
               <ThemedText type="linkPrimary">Change</ThemedText>
             </Pressable>
           </Row>
-          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} startedOn={first.measuredOn} />}
+          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} />}
         </Card>
       ) : (
         <Card>
-          <ThemedText themeColor="textSecondary">You haven&apos;t weighed in today.</ThemedText>
           <Button title="Weigh in" onPress={() => setDismissed(false)} />
-          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} startedOn={first.measuredOn} />}
+          {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} />}
         </Card>
       )}
 
@@ -125,7 +125,8 @@ export default function TrendScreen() {
         <>
           <Card>
             <RangeSummary points={points} />
-            <WeightChart points={points} goalKg={goalKg} />
+            <WeightChart points={points} goalKg={goalKg} showWeighIns={showWeighIns} />
+            <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
           </Card>
           <Card style={styles.list}>
             {[...points].reverse().map((w) => (
@@ -138,17 +139,7 @@ export default function TrendScreen() {
   );
 }
 
-function GoalBar({
-  startKg,
-  latestKg,
-  goalKg,
-  startedOn,
-}: {
-  startKg: number;
-  latestKg: number;
-  goalKg: number;
-  startedOn: string;
-}) {
+function GoalBar({ startKg, latestKg, goalKg }: { startKg: number; latestKg: number; goalKg: number }) {
   const theme = useTheme();
   const progress = goalProgress(startKg, latestKg, goalKg);
   if (!progress) return null;
@@ -174,9 +165,6 @@ function GoalBar({
           ]}
         />
       </View>
-      <ThemedText type="small" themeColor="textSecondary">
-        Started at {formatKg(startKg)} on {startedOn}
-      </ThemedText>
     </View>
   );
 }

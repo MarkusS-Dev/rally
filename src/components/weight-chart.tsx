@@ -7,21 +7,26 @@ import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { useTheme } from '@/hooks/use-theme';
 import type { WeighIn } from '@/lib/api/types';
+import { dayNumber, linearTrend } from '@/lib/stats';
 
 const HEIGHT = 200;
 const PAD = { top: 16, right: 12, bottom: 24, left: 40 };
-
-function dayNumber(date: string): number {
-  return Date.parse(`${date}T00:00:00Z`) / 86_400_000;
-}
 
 function shortDate(date: string): string {
   const [, m, d] = date.split('-');
   return `${Number(d)}/${Number(m)}`;
 }
 
-/** `points` must be oldest first. */
-export function WeightChart({ points, goalKg }: { points: WeighIn[]; goalKg?: number | null }) {
+/** `points` must be oldest first. With `showWeighIns` off only the trendline is drawn. */
+export function WeightChart({
+  points,
+  goalKg,
+  showWeighIns = true,
+}: {
+  points: WeighIn[];
+  goalKg?: number | null;
+  showWeighIns?: boolean;
+}) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
 
@@ -56,6 +61,8 @@ export function WeightChart({ points, goalKg }: { points: WeighIn[]; goalKg?: nu
     .join(' ');
 
   const gridValues = [max - yPad, (max + min) / 2, min + yPad];
+  const trend = linearTrend(points.map((p) => ({ x: dayNumber(p.measuredOn), y: p.weightKg })));
+  const trendY = (date: string) => (trend ? trend.slope * dayNumber(date) + trend.intercept : 0);
 
   return (
     <View
@@ -98,8 +105,22 @@ export function WeightChart({ points, goalKg }: { points: WeighIn[]; goalKg?: nu
             </>
           )}
 
-          <Path d={path} stroke={theme.accent} strokeWidth={2.5} fill="none" strokeLinejoin="round" strokeLinecap="round" />
-          {points.length <= 60 &&
+          {showWeighIns && (
+            <Path d={path} stroke={theme.accent} strokeWidth={2} strokeOpacity={0.55} fill="none" strokeLinejoin="round" strokeLinecap="round" />
+          )}
+          {trend && points.length > 1 && (
+            <Line
+              x1={x(points[0].measuredOn)}
+              y1={y(trendY(points[0].measuredOn))}
+              x2={x(points[points.length - 1].measuredOn)}
+              y2={y(trendY(points[points.length - 1].measuredOn))}
+              stroke={theme.accent}
+              strokeWidth={2.5}
+              strokeDasharray="7 4"
+            />
+          )}
+          {showWeighIns &&
+            points.length <= 60 &&
             points.map((p) => (
               <Circle key={p.id} cx={x(p.measuredOn)} cy={y(p.weightKg)} r={3} fill={theme.accent} />
             ))}

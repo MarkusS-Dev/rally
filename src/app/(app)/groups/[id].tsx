@@ -4,7 +4,7 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { GroupChart, type ChartSeries } from '@/components/group-chart';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Loading, Notice, Row, Screen, Segmented } from '@/components/ui';
+import { Button, Card, Chip, Loading, Notice, Row, Screen, Segmented, Toggle } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -28,17 +28,17 @@ const CHART_RANGES = [
 ] as const;
 type ChartRange = (typeof CHART_RANGES)[number]['label'];
 
-const CURRENT: { category: RankingCategory; title: string; hint: string }[] = [
-  { category: 'day', title: 'Today', hint: 'Since yesterday (people who weighed in today)' },
-  { category: 'week', title: 'This week', hint: 'Last 7 days' },
-  { category: 'month', title: 'This month', hint: 'Last 30 days' },
-  { category: 'total', title: 'All time', hint: 'Since the first weigh-in' },
+const CURRENT: { category: RankingCategory; title: string }[] = [
+  { category: 'day', title: 'Today' },
+  { category: 'week', title: 'This week' },
+  { category: 'month', title: 'This month' },
+  { category: 'total', title: 'All time' },
 ];
 
-const RECORDS: { category: RankingCategory; title: string; hint: string }[] = [
-  { category: 'best_day', title: 'Best single day', hint: 'Biggest drop between two days in a row' },
-  { category: 'best_week', title: 'Best 7 days', hint: 'Biggest drop within any 7 days' },
-  { category: 'best_month', title: 'Best 30 days', hint: 'Biggest drop within any 30 days' },
+const RECORDS: { category: RankingCategory; title: string }[] = [
+  { category: 'best_day', title: 'Best single day' },
+  { category: 'best_week', title: 'Best 7 days' },
+  { category: 'best_month', title: 'Best 30 days' },
 ];
 
 // Distinct line colours for members; "you" always get the brand orange.
@@ -61,6 +61,7 @@ export default function GroupScreen() {
   const [range, setRange] = useState<ChartRange>('Month');
   const [menuOpen, setMenuOpen] = useState(false);
   const theme = useTheme();
+  const [showWeighIns, setShowWeighIns] = useState(true);
 
   const query = useFocusQuery(() => loadGroup(id), id);
   const days = CHART_RANGES.find((r) => r.label === range)!.days;
@@ -119,22 +120,22 @@ export default function GroupScreen() {
           ))}
         </Row>
         {chart.data ? (
-          <GroupChart series={series} metric={metric} />
+          <GroupChart series={series} metric={metric} showWeighIns={showWeighIns} />
         ) : chart.status === 'error' ? (
           <Notice message={chart.error.message} />
         ) : (
           <Loading />
         )}
+        <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
       </Card>
 
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
-        {metric === 'kg' ? 'KG LOST' : '% LOST'} · NOW
+        NOW
       </ThemedText>
       {CURRENT.map((c) => (
         <RankingCard
           key={c.category}
           title={c.title}
-          hint={c.hint}
           entries={rankingFor(rankings, c.category, metric)}
           metric={metric}
           colorOf={colorOf}
@@ -143,24 +144,18 @@ export default function GroupScreen() {
       ))}
 
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
-        {metric === 'kg' ? 'KG LOST' : '% LOST'} · RECORDS
+        RECORDS
       </ThemedText>
       {RECORDS.map((c) => (
         <RankingCard
           key={c.category}
           title={c.title}
-          hint={c.hint}
           entries={rankingFor(rankings, c.category, metric)}
           metric={metric}
           colorOf={colorOf}
         />
       ))}
 
-      {members.length === 1 && (
-        <ThemedText type="small" themeColor="textSecondary">
-          It&apos;s just you so far. Invite friends from the ⋯ menu.
-        </ThemedText>
-      )}
     </Screen>
   );
 }
@@ -178,14 +173,12 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 
 function RankingCard({
   title,
-  hint,
   entries,
   metric,
   colorOf,
   showWeight = false,
 }: {
   title: string;
-  hint: string;
   entries: RankingEntry[];
   metric: RankingMetric;
   colorOf: (userId: string) => string;
@@ -194,12 +187,7 @@ function RankingCard({
   const theme = useTheme();
   return (
     <Card style={styles.rankingCard}>
-      <View>
-        <ThemedText type="smallBold">{title}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {hint}
-        </ThemedText>
-      </View>
+      <ThemedText type="smallBold">{title}</ThemedText>
       {entries.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
           No data yet.
