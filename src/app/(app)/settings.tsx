@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { TimeWheel } from '@/components/time-wheel';
@@ -11,6 +11,7 @@ import { ApiError } from '@/lib/api/errors';
 import { getMySettings, updateDisplayName, updateSettings } from '@/lib/api/settings';
 import type { MySettings } from '@/lib/api/types';
 import { applyReminder, getSavedReminderTime } from '@/lib/reminders';
+import { formatKg } from '@/lib/stats';
 import { useSession } from '@/lib/session';
 import { joinTime, splitTime } from '@/lib/time';
 import type { FieldErrors } from '@/lib/validation';
@@ -52,11 +53,20 @@ export default function SettingsScreen() {
 }
 
 function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initial.displayName);
   const [goal, setGoal] = useState(initial.goalWeightKg?.toFixed(1) ?? '');
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<Message>(null);
+
+  function cancel() {
+    setName(initial.displayName);
+    setGoal(initial.goalWeightKg?.toFixed(1) ?? '');
+    setErrors({});
+    setMessage(null);
+    setEditing(false);
+  }
 
   async function save() {
     setBusy(true);
@@ -68,7 +78,7 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
         name.trim() !== initial.displayName ? updateDisplayName(name) : Promise.resolve(),
         updateSettings({ goalWeight, unit: 'kg' }),
       ]);
-      setMessage({ text: 'Saved.', tone: 'info' });
+      setEditing(false);
       onSaved();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -84,18 +94,48 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
 
   return (
     <Card>
-      <ThemedText type="smallBold">Profile</ThemedText>
-      <Field label="Your name" value={name} onChangeText={setName} autoCapitalize="words" errors={errors.displayName} />
-      <Field
-        label="Goal weight (kg)"
-        placeholder="Optional"
-        value={goal}
-        onChangeText={setGoal}
-        keyboardType="decimal-pad"
-        errors={errors.goalWeight}
-      />
-      <Notice message={message?.text} tone={message?.tone} />
-      <Button title="Save" onPress={save} loading={busy} />
+      <Row style={styles.spread}>
+        <ThemedText type="smallBold">Profile</ThemedText>
+        {!editing && (
+          <Pressable accessibilityRole="button" onPress={() => setEditing(true)} hitSlop={12}>
+            <ThemedText type="linkPrimary">Edit</ThemedText>
+          </Pressable>
+        )}
+      </Row>
+
+      {editing ? (
+        <>
+          <Field label="Your name" value={name} onChangeText={setName} autoCapitalize="words" errors={errors.displayName} />
+          <Field
+            label="Goal weight (kg)"
+            placeholder="Optional"
+            value={goal}
+            onChangeText={setGoal}
+            keyboardType="decimal-pad"
+            errors={errors.goalWeight}
+          />
+          <Notice message={message?.text} tone={message?.tone} />
+          <Row style={styles.nowrap}>
+            <View style={styles.flex}>
+              <Button title="Cancel" variant="secondary" onPress={cancel} disabled={busy} />
+            </View>
+            <View style={styles.flex}>
+              <Button title="Save" onPress={save} loading={busy} />
+            </View>
+          </Row>
+        </>
+      ) : (
+        <>
+          <Row style={styles.spread}>
+            <ThemedText themeColor="textSecondary">Name</ThemedText>
+            <ThemedText>{initial.displayName}</ThemedText>
+          </Row>
+          <Row style={styles.spread}>
+            <ThemedText themeColor="textSecondary">Goal</ThemedText>
+            <ThemedText>{initial.goalWeightKg != null ? formatKg(initial.goalWeightKg) : '–'}</ThemedText>
+          </Row>
+        </>
+      )}
     </Card>
   );
 }
@@ -150,5 +190,7 @@ function ReminderForm() {
 
 const styles = StyleSheet.create({
   switchRow: { flexWrap: 'nowrap' },
+  spread: { justifyContent: 'space-between', flexWrap: 'nowrap' },
+  nowrap: { flexWrap: 'nowrap' },
   flex: { flex: 1 },
 });
