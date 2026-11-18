@@ -63,16 +63,22 @@ export async function applyReminder(
   await step('Clearing old reminders', () => Notifications.cancelAllScheduledNotificationsAsync());
   if (!time) return 'off';
 
+  // Our own Android channel is nice to have, not required: Expo Go's native
+  // channel code can throw a NullPointerException here. Without a channel the
+  // notification goes to Expo's default channel instead.
+  let channelId: string | undefined;
   if (Platform.OS === 'android') {
-    // Android 13+ only shows the permission prompt once a channel exists.
-    await step('Creating the Android notification channel', () =>
-      Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+    try {
+      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
         name: 'Daily weigh-in reminder',
         // Exported via `export *`, which the import/namespace lint rule can't follow.
         // eslint-disable-next-line import/namespace
         importance: Notifications.AndroidImportance.DEFAULT,
-      }),
-    );
+      });
+      channelId = CHANNEL_ID;
+    } catch (e) {
+      console.warn('Notification channel not created; using the default channel.', e);
+    }
   }
 
   let permission = await step('Checking notification permission', () => Notifications.getPermissionsAsync());
@@ -95,7 +101,7 @@ export async function applyReminder(
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
         hour,
         minute,
-        channelId: CHANNEL_ID,
+        ...(channelId ? { channelId } : {}),
       },
     }),
   );
