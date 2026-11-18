@@ -28,17 +28,12 @@ const CHART_RANGES = [
 ] as const;
 type ChartRange = (typeof CHART_RANGES)[number]['label'];
 
-const CURRENT: { category: RankingCategory; title: string }[] = [
-  { category: 'day', title: 'Today' },
-  { category: 'week', title: 'This week' },
-  { category: 'month', title: 'This month' },
-  { category: 'total', title: 'All time' },
-];
-
-const RECORDS: { category: RankingCategory; title: string }[] = [
-  { category: 'best_day', title: 'Best single day' },
-  { category: 'best_week', title: 'Best 7 days' },
-  { category: 'best_month', title: 'Best 30 days' },
+// Each period: the ranking right now, plus the best stretch of that length ever.
+const PERIODS: { label: string; current: RankingCategory; record: RankingCategory | null }[] = [
+  { label: 'Day', current: 'day', record: 'best_day' },
+  { label: 'Week', current: 'week', record: 'best_week' },
+  { label: 'Month', current: 'month', record: 'best_month' },
+  { label: 'All time', current: 'total', record: null },
 ];
 
 // Distinct line colours for members; "you" always get the brand orange.
@@ -58,6 +53,8 @@ async function loadGroup(id: string) {
 export default function GroupScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [metric, setMetric] = useState<RankingMetric>('pct');
+  const [rankMetric, setRankMetric] = useState<RankingMetric>('pct');
+  const [periodLabel, setPeriodLabel] = useState('Week');
   const [range, setRange] = useState<ChartRange>('Month');
   const [menuOpen, setMenuOpen] = useState(false);
   const theme = useTheme();
@@ -90,6 +87,7 @@ export default function GroupScreen() {
   }
 
   const { group, members, rankings } = query.data;
+  const period = PERIODS.find((p) => p.label === periodLabel) ?? PERIODS[1];
   const meId = rankings.find((r) => r.isMe)?.userId;
   const colorOf = memberColors(members, meId, theme.accent);
 
@@ -150,33 +148,40 @@ export default function GroupScreen() {
         </ToggleRow>
       </Card>
 
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
-        NOW
-      </ThemedText>
-      {CURRENT.map((c) => (
-        <RankingCard
-          key={c.category}
-          title={c.title}
-          entries={rankingFor(rankings, c.category, metric)}
-          metric={metric}
+      <Card>
+        <Row style={styles.cardHeader}>
+          <ThemedText type="smallBold">Rankings</ThemedText>
+          <Segmented
+            accessibilityLabel="Rank by percent or kilograms"
+            options={[
+              { value: 'pct', label: '%' },
+              { value: 'kg', label: 'kg' },
+            ]}
+            value={rankMetric}
+            onChange={setRankMetric}
+          />
+        </Row>
+        <Row>
+          {PERIODS.map((p) => (
+            <Chip key={p.label} label={p.label} selected={period.label === p.label} onPress={() => setPeriodLabel(p.label)} />
+          ))}
+        </Row>
+        <RankingList
+          title="Now"
+          entries={rankingFor(rankings, period.current, rankMetric)}
+          metric={rankMetric}
           colorOf={colorOf}
           showWeight
         />
-      ))}
-
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>
-        RECORDS
-      </ThemedText>
-      {RECORDS.map((c) => (
-        <RankingCard
-          key={c.category}
-          title={c.title}
-          entries={rankingFor(rankings, c.category, metric)}
-          metric={metric}
-          colorOf={colorOf}
-        />
-      ))}
-
+        {period.record && (
+          <RankingList
+            title="Record"
+            entries={rankingFor(rankings, period.record, rankMetric)}
+            metric={rankMetric}
+            colorOf={colorOf}
+          />
+        )}
+      </Card>
     </Screen>
   );
 }
@@ -192,7 +197,7 @@ function memberColors(members: GroupMember[], meId: string | undefined, myColor:
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
-function RankingCard({
+function RankingList({
   title,
   entries,
   metric,
@@ -207,8 +212,10 @@ function RankingCard({
 }) {
   const theme = useTheme();
   return (
-    <Card style={styles.rankingCard}>
-      <ThemedText type="smallBold">{title}</ThemedText>
+    <View style={styles.rankingList}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {title}
+      </ThemedText>
       {entries.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
           No data yet.
@@ -241,7 +248,7 @@ function RankingCard({
           );
         })
       )}
-    </Card>
+    </View>
   );
 }
 
@@ -315,8 +322,7 @@ function GroupMenu({ group }: { group: Group }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   cardHeader: { justifyContent: 'space-between', flexWrap: 'nowrap' },
-  section: { marginTop: Spacing.two, letterSpacing: 1 },
-  rankingCard: { gap: Spacing.two },
+  rankingList: { gap: Spacing.one, marginTop: Spacing.two },
   rankRow: { flexWrap: 'nowrap', paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: Spacing.two },
   rank: { width: 28, textAlign: 'center' },
   dot: { width: 10, height: 10, borderRadius: 5 },
