@@ -25,10 +25,13 @@ import { ThemedText } from './themed-text';
 export function Screen({
   children,
   title,
+  action,
   underHeader = false,
 }: {
   children: ReactNode;
   title?: string;
+  /** Shown at the right end of the title row. */
+  action?: ReactNode;
   underHeader?: boolean;
 }) {
   const theme = useTheme();
@@ -45,7 +48,12 @@ export function Screen({
           paddingBottom: insets.bottom + BottomTabInset + Spacing.four,
         },
       ]}>
-      {title ? <ThemedText type="subtitle">{title}</ThemedText> : null}
+      {title ? (
+        <View style={styles.titleRow}>
+          <ThemedText type="subtitle">{title}</ThemedText>
+          {action}
+        </View>
+      ) : null}
       {children}
     </ScrollView>
   );
@@ -185,6 +193,7 @@ export function Loading() {
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   screen: {
     gap: Spacing.three,
     paddingHorizontal: Spacing.three,

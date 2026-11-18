@@ -17,7 +17,13 @@ export default function GroupsScreen() {
   const [manageOpen, setManageOpen] = useState(false);
 
   return (
-    <Screen title="Groups">
+    <Screen
+      title="Groups"
+      action={
+        <Pressable accessibilityRole="button" onPress={() => setManageOpen(true)} hitSlop={12}>
+          <ThemedText type="linkPrimary">Manage groups</ThemedText>
+        </Pressable>
+      }>
       {query.status === 'error' && <Notice message={query.error.message} />}
       {!query.data ? (
         query.status === 'loading' && <Loading />
@@ -29,7 +35,6 @@ export default function GroupsScreen() {
         query.data.map((g) => <GroupLink key={g.id} group={g} />)
       )}
 
-      <Button title="Manage groups" variant="secondary" onPress={() => setManageOpen(true)} />
       <ManageGroupsModal visible={manageOpen} onClose={() => setManageOpen(false)} />
     </Screen>
   );
@@ -43,13 +48,18 @@ function GroupLink({ group }: { group: Group }) {
         accessibilityRole="link"
         style={({ pressed }) => [
           styles.groupLink,
-          { backgroundColor: theme.backgroundElement, opacity: pressed ? 0.75 : 1 },
+          { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: pressed ? 0.75 : 1 },
         ]}>
-        <ThemedText type="smallBold" style={styles.groupName}>
-          {group.name}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {group.isOwner ? 'Owner' : 'Member'}
+        <View style={styles.groupText}>
+          <ThemedText type="smallBold" style={styles.groupName}>
+            {group.name}
+          </ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {group.isOwner ? 'Owner' : 'Member'}
+          </ThemedText>
+        </View>
+        <ThemedText style={styles.chevron} themeColor="textSecondary">
+          ›
         </ThemedText>
       </Pressable>
     </Link>
@@ -137,7 +147,15 @@ function ManageGroupsModal({ visible, onClose }: { visible: boolean; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  groupLink: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.one },
+  groupLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: Spacing.three,
+    borderWidth: 1.5,
+    padding: Spacing.three,
+  },
+  groupText: { flex: 1, gap: Spacing.one },
+  chevron: { fontSize: 28, lineHeight: 30 },
   groupName: { fontSize: 18 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   sheet: {
