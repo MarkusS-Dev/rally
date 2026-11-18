@@ -85,3 +85,17 @@ export type RankingEntry = {
 };
 
 export type GroupWeighIn = { userId: string; measuredOn: string; weightKg: number };
+
+/** Days in a row with a weigh-in. `current` counts a run ending today or yesterday. */
+export type Streak = {
+  current: number;
+  best: number;
+  bestFrom: string | null;
+  bestTo: string | null;
+};
+
+export type StreakEntry = Streak & {
+  userId: string;
+  displayName: string;
+  isMe: boolean;
+};

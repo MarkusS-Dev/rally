@@ -12,7 +12,8 @@ import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError } from '@/lib/api/errors';
 import { getMySettings } from '@/lib/api/settings';
-import type { WeighIn } from '@/lib/api/types';
+import { getMyStreak } from '@/lib/api/streaks';
+import type { Streak, WeighIn } from '@/lib/api/types';
 import {
   deleteWeighIn,
   getFirstWeighIn,
@@ -34,15 +35,16 @@ type RangeLabel = (typeof RANGES)[number]['label'];
 
 async function loadTrend(days: number | null) {
   const today = localToday();
-  const [settings, recent, first, points] = await Promise.all([
+  const [settings, recent, first, points, streak] = await Promise.all([
     getMySettings(),
     listWeighIns({ pageSize: 2 }),
     getFirstWeighIn(),
     listAllWeighInsSince(days === null ? undefined : addDays(today, -days)),
+    getMyStreak(),
   ]);
   const todays = recent.items.find((w) => w.measuredOn === today) ?? null;
   const previous = recent.items.find((w) => w.measuredOn < today) ?? null;
-  return { today, todays, previous, first, points, goalKg: settings.goalWeightKg };
+  return { today, todays, previous, first, points, streak, goalKg: settings.goalWeightKg };
 }
 
 export default function TrendScreen() {
@@ -62,7 +64,7 @@ export default function TrendScreen() {
     );
   }
 
-  const { today, todays, previous, first, points, goalKg } = query.data;
+  const { today, todays, previous, first, points, streak, goalKg } = query.data;
   const showPrompt = changingToday || (!todays && !dismissed);
 
   // Step 1: weigh in. Step 2 (after saving or "Not now"): the trend.
@@ -103,11 +105,13 @@ export default function TrendScreen() {
               <ThemedText type="linkPrimary">Change</ThemedText>
             </Pressable>
           </Row>
+          <StreakRow streak={streak} />
           {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} />}
         </Card>
       ) : (
         <Card>
           <Button title="Weigh in" onPress={() => setDismissed(false)} />
+          <StreakRow streak={streak} />
           {latest && first && goalKg != null && <GoalBar startKg={first.weightKg} latestKg={latest.weightKg} goalKg={goalKg} />}
         </Card>
       )}
@@ -141,6 +145,30 @@ export default function TrendScreen() {
       )}
     </Screen>
   );
+}
+
+function StreakRow({ streak }: { streak: Streak }) {
+  if (streak.best === 0) return null;
+  return (
+    <Row style={styles.spread}>
+      <View>
+        <ThemedText type="small" themeColor="textSecondary">
+          Streak
+        </ThemedText>
+        <ThemedText type="smallBold">🔥 {streakDays(streak.current)}</ThemedText>
+      </View>
+      <View style={styles.right}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Best
+        </ThemedText>
+        <ThemedText type="smallBold">{streakDays(streak.best)}</ThemedText>
+      </View>
+    </Row>
+  );
+}
+
+function streakDays(n: number) {
+  return `${n} ${n === 1 ? 'day' : 'days'}`;
 }
 
 function GoalBar({ startKg, latestKg, goalKg }: { startKg: number; latestKg: number; goalKg: number }) {
@@ -274,6 +302,7 @@ function HistoryRow({ item, onChanged }: { item: WeighIn; onChanged: () => void 
 const styles = StyleSheet.create({
   spread: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   goal: { gap: Spacing.two },
+  right: { alignItems: 'flex-end' },
   track: { height: 10, borderRadius: 5, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 5 },
   list: { gap: 0, paddingVertical: Spacing.one },

@@ -16,7 +16,15 @@ import {
   listGroupMembers,
   listMyGroups,
 } from '@/lib/api/groups';
-import type { Group, GroupMember, RankingCategory, RankingEntry, RankingMetric } from '@/lib/api/types';
+import type {
+  Group,
+  GroupMember,
+  RankingCategory,
+  RankingEntry,
+  RankingMetric,
+  StreakEntry,
+} from '@/lib/api/types';
+import { getGroupStreaks } from '@/lib/api/streaks';
 import { confirm } from '@/lib/confirm';
 import { addDays, formatChangeKg, formatKg, formatPct, rankingFor } from '@/lib/stats';
 import { localToday } from '@/lib/validation';
@@ -40,14 +48,15 @@ const PERIODS: { label: string; current: RankingCategory; record: RankingCategor
 const MEMBER_COLORS = ['#2E86DE', '#10AC84', '#8E44AD', '#F39C12', '#E84393', '#00A8B5', '#6D4C41', '#7F8C8D'];
 
 async function loadGroup(id: string) {
-  const [groups, members, rankings] = await Promise.all([
+  const [groups, members, rankings, streaks] = await Promise.all([
     listMyGroups(),
     listGroupMembers(id),
     getGroupRankings(id),
+    getGroupStreaks(id),
   ]);
   const group = groups.find((g) => g.id === id);
   if (!group) throw new Error("This group doesn't exist anymore, or you're no longer in it.");
-  return { group, members, rankings };
+  return { group, members, rankings, streaks };
 }
 
 export default function GroupScreen() {
@@ -86,7 +95,7 @@ export default function GroupScreen() {
     );
   }
 
-  const { group, members, rankings } = query.data;
+  const { group, members, rankings, streaks } = query.data;
   const period = PERIODS.find((p) => p.label === periodLabel) ?? PERIODS[1];
   const meId = rankings.find((r) => r.isMe)?.userId;
   const colorOf = memberColors(members, meId, theme.accent);
@@ -182,8 +191,67 @@ export default function GroupScreen() {
           />
         )}
       </Card>
+
+      <StreakCard streaks={streaks} colorOf={colorOf} />
     </Screen>
   );
+}
+
+type StreakView = 'now' | 'best';
+
+/** Days in a row with a weigh-in, ranked. The top of "Best" is the group record. */
+function StreakCard({ streaks, colorOf }: { streaks: StreakEntry[]; colorOf: (userId: string) => string }) {
+  const theme = useTheme();
+  const [view, setView] = useState<StreakView>('now');
+  const value = (s: StreakEntry) => (view === 'now' ? s.current : s.best);
+  const ranked = streaks
+    .filter((s) => value(s) > 0)
+    .sort((a, b) => value(b) - value(a) || a.displayName.localeCompare(b.displayName));
+
+  return (
+    <Card>
+      <Row style={styles.cardHeader}>
+        <ThemedText type="smallBold">Streaks 🔥</ThemedText>
+        <Segmented
+          accessibilityLabel="Current or best streaks"
+          options={[
+            { value: 'now', label: 'Now' },
+            { value: 'best', label: 'Best' },
+          ]}
+          value={view}
+          onChange={setView}
+        />
+      </Row>
+      {ranked.length === 0 ? (
+        <ThemedText type="small" themeColor="textSecondary">
+          No streaks yet.
+        </ThemedText>
+      ) : (
+        ranked.map((s, i) => (
+          <Row key={s.userId} style={[styles.rankRow, s.isMe && { backgroundColor: theme.backgroundSelected }]}>
+            <ThemedText style={styles.rank}>{MEDALS[i] ?? `${i + 1}`}</ThemedText>
+            <View style={[styles.dot, { backgroundColor: colorOf(s.userId) }]} />
+            <View style={styles.flex}>
+              <ThemedText type="smallBold">
+                {s.displayName}
+                {s.isMe ? ' (you)' : ''}
+              </ThemedText>
+              {view === 'best' && s.bestFrom && (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {s.bestFrom} → {s.bestTo}
+                </ThemedText>
+              )}
+            </View>
+            <ThemedText type="smallBold">{days(value(s))}</ThemedText>
+          </Row>
+        ))
+      )}
+    </Card>
+  );
+}
+
+function days(n: number) {
+  return `${n} ${n === 1 ? 'day' : 'days'}`;
 }
 
 function memberColors(members: GroupMember[], meId: string | undefined, myColor: string) {
