@@ -282,6 +282,12 @@ export function Toggle({
   );
 }
 
+/** Toggles side by side, right-aligned. */
+export function ToggleRow({ children }: { children: ReactNode }) {
+  return <View style={toggleStyles.group}>{children}</View>;
+}
+
 const toggleStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: Spacing.two },
+  group: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', columnGap: Spacing.four },
 });

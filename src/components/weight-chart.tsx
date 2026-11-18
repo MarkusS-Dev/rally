@@ -17,15 +17,17 @@ function shortDate(date: string): string {
   return `${Number(d)}/${Number(m)}`;
 }
 
-/** `points` must be oldest first. With `showWeighIns` off only the trendline is drawn. */
+/** `points` must be oldest first. */
 export function WeightChart({
   points,
   goalKg,
   showWeighIns = true,
+  showTrend = true,
 }: {
   points: WeighIn[];
   goalKg?: number | null;
   showWeighIns?: boolean;
+  showTrend?: boolean;
 }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
@@ -108,7 +110,7 @@ export function WeightChart({
           {showWeighIns && (
             <Path d={path} stroke={theme.accent} strokeWidth={2} strokeOpacity={0.55} fill="none" strokeLinejoin="round" strokeLinecap="round" />
           )}
-          {trend && points.length > 1 && (
+          {showTrend && trend && points.length > 1 && (
             <Line
               x1={x(points[0].measuredOn)}
               y1={y(trendY(points[0].measuredOn))}

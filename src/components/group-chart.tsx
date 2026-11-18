@@ -31,13 +31,14 @@ export function GroupChart({
   series,
   metric,
   showWeighIns = true,
+  showTrend = true,
   hidden,
   onToggleMember,
 }: {
   series: ChartSeries[];
   metric: RankingMetric;
-  /** Off: only the trendlines. */
   showWeighIns?: boolean;
+  showTrend?: boolean;
   /** Members whose lines are hidden; tapping a legend name toggles them. */
   hidden: ReadonlySet<string>;
   onToggleMember: (userId: string) => void;
@@ -155,7 +156,7 @@ export function GroupChart({
                 />
               ))}
             {ordered.map((l) => {
-              if (!l.trend) return null;
+              if (!showTrend || !l.trend) return null;
               const x1 = l.pts[0].x;
               const x2 = l.pts[l.pts.length - 1].x;
               return (

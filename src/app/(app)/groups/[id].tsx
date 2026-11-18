@@ -4,7 +4,7 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { GroupChart, type ChartSeries } from '@/components/group-chart';
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Loading, Notice, Row, Screen, Segmented, Toggle } from '@/components/ui';
+import { Button, Card, Chip, Loading, Notice, Row, Screen, Segmented, Toggle, ToggleRow } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useFocusQuery } from '@/hooks/use-focus-query';
 import { useTheme } from '@/hooks/use-theme';
@@ -62,6 +62,7 @@ export default function GroupScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const theme = useTheme();
   const [showWeighIns, setShowWeighIns] = useState(true);
+  const [showTrend, setShowTrend] = useState(true);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
 
   function toggleMember(userId: string) {
@@ -134,6 +135,7 @@ export default function GroupScreen() {
             series={series}
             metric={metric}
             showWeighIns={showWeighIns}
+            showTrend={showTrend}
             hidden={hidden}
             onToggleMember={toggleMember}
           />
@@ -142,7 +144,10 @@ export default function GroupScreen() {
         ) : (
           <Loading />
         )}
-        <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
+        <ToggleRow>
+          <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
+          <Toggle label="Trend" value={showTrend} onChange={setShowTrend} />
+        </ToggleRow>
       </Card>
 
       <ThemedText type="smallBold" themeColor="textSecondary" style={styles.section}>

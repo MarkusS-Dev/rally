@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Button, Card, Chip, Field, Loading, Notice, Row, Screen, Toggle } from '@/components/ui';
+import { Button, Card, Chip, Field, Loading, Notice, Row, Screen, Toggle, ToggleRow } from '@/components/ui';
 import { WeighInPrompt } from '@/components/weigh-in-prompt';
 import { WeightChart } from '@/components/weight-chart';
 import { Spacing } from '@/constants/theme';
@@ -52,6 +52,7 @@ export default function TrendScreen() {
   const [dismissed, setDismissed] = useState(false);
   const [changingToday, setChangingToday] = useState(false);
   const [showWeighIns, setShowWeighIns] = useState(true);
+  const [showTrend, setShowTrend] = useState(true);
 
   if (!query.data) {
     return (
@@ -125,8 +126,11 @@ export default function TrendScreen() {
         <>
           <Card>
             <RangeSummary points={points} />
-            <WeightChart points={points} goalKg={goalKg} showWeighIns={showWeighIns} />
-            <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
+            <WeightChart points={points} goalKg={goalKg} showWeighIns={showWeighIns} showTrend={showTrend} />
+            <ToggleRow>
+              <Toggle label="Weigh-ins" value={showWeighIns} onChange={setShowWeighIns} />
+              <Toggle label="Trend" value={showTrend} onChange={setShowTrend} />
+            </ToggleRow>
           </Card>
           <Card style={styles.list}>
             {[...points].reverse().map((w) => (
