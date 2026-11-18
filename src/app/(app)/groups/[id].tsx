@@ -19,12 +19,13 @@ import {
 import type {
   Group,
   GroupMember,
+  GroupStreak,
   RankingCategory,
   RankingEntry,
   RankingMetric,
   StreakEntry,
 } from '@/lib/api/types';
-import { getGroupStreaks } from '@/lib/api/streaks';
+import { getGroupStreak, getGroupStreaks } from '@/lib/api/streaks';
 import { confirm } from '@/lib/confirm';
 import { addDays, formatChangeKg, formatKg, formatPct, rankingFor } from '@/lib/stats';
 import { localToday } from '@/lib/validation';
@@ -48,15 +49,16 @@ const PERIODS: { label: string; current: RankingCategory; record: RankingCategor
 const MEMBER_COLORS = ['#2E86DE', '#10AC84', '#8E44AD', '#F39C12', '#E84393', '#00A8B5', '#6D4C41', '#7F8C8D'];
 
 async function loadGroup(id: string) {
-  const [groups, members, rankings, streaks] = await Promise.all([
+  const [groups, members, rankings, streaks, groupStreak] = await Promise.all([
     listMyGroups(),
     listGroupMembers(id),
     getGroupRankings(id),
     getGroupStreaks(id),
+    getGroupStreak(id),
   ]);
   const group = groups.find((g) => g.id === id);
   if (!group) throw new Error("This group doesn't exist anymore, or you're no longer in it.");
-  return { group, members, rankings, streaks };
+  return { group, members, rankings, streaks, groupStreak };
 }
 
 export default function GroupScreen() {
@@ -95,7 +97,7 @@ export default function GroupScreen() {
     );
   }
 
-  const { group, members, rankings, streaks } = query.data;
+  const { group, members, rankings, streaks, groupStreak } = query.data;
   const period = PERIODS.find((p) => p.label === periodLabel) ?? PERIODS[1];
   const meId = rankings.find((r) => r.isMe)?.userId;
   const colorOf = memberColors(members, meId, theme.accent);
@@ -118,6 +120,8 @@ export default function GroupScreen() {
       />
       {menuOpen && <GroupMenu group={group} />}
       {query.status === 'error' && <Notice message={query.error.message} />}
+
+      <GroupStreakCard streak={groupStreak} members={members} meId={meId} colorOf={colorOf} />
 
       <Card>
         <Row style={styles.cardHeader}>
@@ -194,6 +198,78 @@ export default function GroupScreen() {
 
       <StreakCard streaks={streaks} colorOf={colorOf} />
     </Screen>
+  );
+}
+
+/** The whole group's streak, plus who has and hasn't weighed in today. */
+function GroupStreakCard({
+  streak,
+  members,
+  meId,
+  colorOf,
+}: {
+  streak: GroupStreak;
+  members: GroupMember[];
+  meId: string | undefined;
+  colorOf: (userId: string) => string;
+}) {
+  const missing = new Set(streak.missingToday);
+  const done = members.filter((m) => !missing.has(m.userId));
+  const waiting = members.filter((m) => missing.has(m.userId));
+
+  async function nudge(name: string) {
+    const message =
+      streak.current > 0
+        ? `Hey ${name}! Time to weigh in 💪 Our group streak is at ${days(streak.current)}, let's keep it going!`
+        : `Hey ${name}! Time to weigh in 💪 Let's start a group streak today!`;
+    await Share.share({ message }).catch(() => {});
+  }
+
+  return (
+    <Card>
+      <Row style={styles.cardHeader}>
+        <View>
+          <ThemedText type="small" themeColor="textSecondary">
+            Group streak
+          </ThemedText>
+          <ThemedText type="subtitle">🔥 {days(streak.current)}</ThemedText>
+        </View>
+        <View style={styles.alignEnd}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Best
+          </ThemedText>
+          <ThemedText type="smallBold">{days(streak.best)}</ThemedText>
+        </View>
+      </Row>
+
+      <View style={styles.todayList}>
+        {waiting.map((m) => (
+          <Row key={m.userId} style={styles.todayRow}>
+            <View style={[styles.dot, { backgroundColor: colorOf(m.userId) }]} />
+            <ThemedText style={styles.flex}>
+              {m.displayName}
+              {m.userId === meId ? ' (you)' : ''}
+            </ThemedText>
+            {m.userId !== meId && (
+              <Pressable accessibilityRole="button" accessibilityLabel={`Nudge ${m.displayName}`} onPress={() => nudge(m.displayName)} hitSlop={8}>
+                <ThemedText type="linkPrimary">Nudge</ThemedText>
+              </Pressable>
+            )}
+            <ThemedText style={styles.status}>⏳</ThemedText>
+          </Row>
+        ))}
+        {done.map((m) => (
+          <Row key={m.userId} style={styles.todayRow}>
+            <View style={[styles.dot, { backgroundColor: colorOf(m.userId) }]} />
+            <ThemedText style={styles.flex}>
+              {m.displayName}
+              {m.userId === meId ? ' (you)' : ''}
+            </ThemedText>
+            <ThemedText style={styles.status}>✅</ThemedText>
+          </Row>
+        ))}
+      </View>
+    </Card>
   );
 }
 
@@ -389,6 +465,10 @@ function GroupMenu({ group }: { group: Group }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  alignEnd: { alignItems: 'flex-end' },
+  todayList: { gap: Spacing.one },
+  todayRow: { flexWrap: 'nowrap', alignItems: 'center', minHeight: 32 },
+  status: { width: 28, textAlign: 'center' },
   cardHeader: { justifyContent: 'space-between', flexWrap: 'nowrap' },
   rankingList: { gap: Spacing.one, marginTop: Spacing.two },
   rankRow: { flexWrap: 'nowrap', paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: Spacing.two },

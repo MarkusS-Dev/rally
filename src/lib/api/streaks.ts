@@ -2,7 +2,7 @@ import { supabase } from '../supabase';
 import { localToday } from '../validation';
 import { unwrap } from './errors';
 import { currentUserId } from './session';
-import type { Streak, StreakEntry } from './types';
+import type { GroupStreak, Streak, StreakEntry } from './types';
 
 type StreakRow = {
   current_streak: number;
@@ -37,4 +37,11 @@ export async function getGroupStreaks(groupId: string): Promise<StreakEntry[]> {
     displayName: r.display_name,
     isMe: r.user_id === me,
   }));
+}
+
+/** The group's collective streak, and who hasn't weighed in today. */
+export async function getGroupStreak(groupId: string): Promise<GroupStreak> {
+  type Row = StreakRow & { missing_today: string[] | null };
+  const rows = unwrap<Row[]>(await supabase.rpc('group_collective_streak', { gid: groupId, today: localToday() }));
+  return { ...toStreak(rows[0]), missingToday: rows[0]?.missing_today ?? [] };
 }

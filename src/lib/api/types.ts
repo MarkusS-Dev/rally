@@ -99,3 +99,9 @@ export type StreakEntry = Streak & {
   displayName: string;
   isMe: boolean;
 };
+
+/** Days in a row on which everyone in the group weighed in. */
+export type GroupStreak = Streak & {
+  /** Members who haven't weighed in today. */
+  missingToday: string[];
+};
