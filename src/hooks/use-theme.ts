@@ -1,14 +1,14 @@
 /**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
+ * The app's colours: light/dark mode plus the palette chosen in Settings.
  */
 
-import { Colors } from '@/constants/theme';
+import { useMemo } from 'react';
+
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { buildTheme, paletteOf, useAppearance } from '@/lib/appearance';
 
 export function useTheme() {
   const scheme = useColorScheme();
-  const theme = scheme === 'dark' ? 'dark' : 'light';
-
-  return Colors[theme];
+  const appearance = useAppearance();
+  return useMemo(() => buildTheme(scheme, paletteOf(appearance)), [scheme, appearance]);
 }

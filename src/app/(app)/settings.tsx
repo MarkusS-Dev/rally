@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { AppearanceCard } from '@/components/appearance-card';
 import { TimeWheel } from '@/components/time-wheel';
 import { Button, Card, Field, Loading, Notice, Row, Screen } from '@/components/ui';
 import { useFocusQuery } from '@/hooks/use-focus-query';
@@ -39,6 +40,8 @@ export default function SettingsScreen() {
       ) : (
         query.status === 'loading' && <Loading />
       )}
+
+      <AppearanceCard />
 
 
       <Card>

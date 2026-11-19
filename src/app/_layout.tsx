@@ -3,14 +3,29 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/hooks/use-theme';
 import { SessionProvider, useSession } from '@/lib/session';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const theme = useTheme();
+  const base = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
+  // Headers and other navigation chrome follow the chosen palette too.
+  const navTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: theme.accent,
+      background: theme.background,
+      card: theme.background,
+      text: theme.text,
+      border: theme.border,
+    },
+  };
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={navTheme}>
       <SessionProvider>
         <RootNavigator />
       </SessionProvider>
