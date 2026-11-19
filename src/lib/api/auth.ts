@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
 import { isValid, validateSignIn, validateSignUp } from '../validation';
-import { ApiError } from './errors';
+import { ApiError, unwrap } from './errors';
 
 // Supabase Auth error codes → friendly messages (and the field they belong to).
 const AUTH_ERRORS: Record<string, { message: string; field?: string }> = {
@@ -44,4 +44,14 @@ export async function signUp(email: string, password: string, displayName: strin
 export async function signOut(): Promise<void> {
   const { error } = await supabase.auth.signOut();
   if (error) throw toAuthError(error);
+}
+
+/**
+ * Permanently delete my account: profile, settings, weigh-ins and group
+ * memberships. Groups I own pass to the member who joined earliest.
+ */
+export async function deleteMyAccount(): Promise<void> {
+  unwrap(await supabase.rpc('delete_my_account'));
+  // The account no longer exists server-side; just forget the session here.
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
 }

@@ -6,10 +6,11 @@ import { AppearanceCard } from '@/components/appearance-card';
 import { TimeWheel } from '@/components/time-wheel';
 import { Button, Card, Field, Loading, Notice, Row, Screen, ThemedSwitch } from '@/components/ui';
 import { useFocusQuery } from '@/hooks/use-focus-query';
-import { signOut } from '@/lib/api/auth';
+import { deleteMyAccount, signOut } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/errors';
 import { getMySettings, updateDisplayName, updateSettings } from '@/lib/api/settings';
 import type { MySettings } from '@/lib/api/types';
+import { confirm } from '@/lib/confirm';
 import { applyReminder, getSavedReminderTime } from '@/lib/reminders';
 import { formatKg } from '@/lib/stats';
 import { useSession } from '@/lib/session';
@@ -43,13 +44,42 @@ export default function SettingsScreen() {
       <AppearanceCard />
 
 
-      <Card>
-        <ThemedText type="small" themeColor="textSecondary">
-          Signed in as {session?.user.email}
-        </ThemedText>
-        <Button title="Sign out" variant="secondary" onPress={() => signOut().catch(() => {})} />
-      </Card>
+      <AccountCard email={session?.user.email} />
     </Screen>
+  );
+}
+
+function AccountCard({ email }: { email?: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    const ok = await confirm(
+      'Delete account?',
+      'Your weigh-ins, streaks and group memberships are deleted for good. Groups you own pass to another member.',
+      'Delete',
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await applyReminder(null).catch(() => {});
+      await deleteMyAccount();
+    } catch (e) {
+      setError(`Could not delete the account: ${describe(e)}`);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <ThemedText type="small" themeColor="textSecondary">
+        Signed in as {email}
+      </ThemedText>
+      <Button title="Sign out" variant="secondary" onPress={() => signOut().catch(() => {})} disabled={busy} />
+      <Notice message={error} />
+      <Button title="Delete account" variant="danger" onPress={remove} loading={busy} />
+    </Card>
   );
 }
 
