@@ -12,6 +12,9 @@
       "bundleIdentifier": "com.markussdev.rally",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -54,6 +57,12 @@
       "eas": {
         "projectId": "5ce913ce-1ce7-433a-8395-4a5014e91763"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5ce913ce-1ce7-433a-8395-4a5014e91763"
     }
   }
 }
