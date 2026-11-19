@@ -1,5 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  validateResetPassword,
+  validateResetRequest,
   isValid,
   localToday,
   validateDisplayName,
@@ -109,5 +111,19 @@ describe('validatePage (GetAllEmployeesRequestValidator equivalent)', () => {
 describe('localToday', () => {
   it('formats the local date with zero padding', () => {
     expect(localToday(new Date(2022, 0, 5, 23, 59))).toBe('2022-01-05');
+  });
+});
+
+describe('password reset', () => {
+  it('needs a valid email to send a code', () => {
+    expect(validateResetRequest({ email: 'me@example.com' })).toEqual({});
+    expect(validateResetRequest({ email: 'nope' }).email).toBeDefined();
+  });
+
+  it('needs a numeric code and a long enough password', () => {
+    expect(validateResetPassword({ code: ' 123456 ', password: 'secret1' })).toEqual({});
+    const errors = validateResetPassword({ code: '12ab', password: '123' });
+    expect(errors.code).toBeDefined();
+    expect(errors.password).toBeDefined();
   });
 });

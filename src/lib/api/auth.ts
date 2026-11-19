@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { isValid, validateSignIn, validateSignUp } from '../validation';
+import { isValid, validateResetPassword, validateResetRequest, validateSignIn, validateSignUp } from '../validation';
 import { ApiError, unwrap } from './errors';
 
 // Supabase Auth error codes → friendly messages (and the field they belong to).
@@ -10,6 +10,8 @@ const AUTH_ERRORS: Record<string, { message: string; field?: string }> = {
   email_not_confirmed: { message: 'Confirm your email first. Check your inbox for the link.' },
   weak_password: { message: 'Choose a stronger password.', field: 'password' },
   over_request_rate_limit: { message: 'Too many attempts. Wait a minute and try again.' },
+  otp_expired: { message: 'That code is wrong or has expired. Request a new one.', field: 'code' },
+  same_password: { message: 'Choose a different password from your old one.', field: 'password' },
   over_email_send_rate_limit: { message: 'Too many emails sent. Wait a few minutes and try again.' },
 };
 
@@ -39,6 +41,26 @@ export async function signUp(email: string, password: string, displayName: strin
   });
   if (error) throw toAuthError(error);
   return !data.session;
+}
+
+/** Email a one-time code for resetting the password. Unknown emails get nothing, silently. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const errors = validateResetRequest({ email });
+  if (!isValid(errors)) throw ApiError.validation(errors);
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+  if (error) throw toAuthError(error);
+}
+
+/** Sign in with the emailed code, then set the new password. */
+export async function resetPassword(email: string, code: string, password: string): Promise<void> {
+  const errors = validateResetPassword({ code, password });
+  if (!isValid(errors)) throw ApiError.validation(errors);
+
+  const verified = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'recovery' });
+  if (verified.error) throw toAuthError(verified.error);
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw toAuthError(error);
 }
 
 export async function signOut(): Promise<void> {

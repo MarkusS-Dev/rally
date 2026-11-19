@@ -166,6 +166,23 @@ export function validateSignUp(input: {
   return errors;
 }
 
+/** Step 1 of a password reset: where to send the code. */
+export function validateResetRequest(input: { email: string }): FieldErrors<'email'> {
+  const errors: FieldErrors<'email'> = {};
+  if (!EMAIL.test(input.email.trim())) add(errors, 'email', 'Enter a valid email address.');
+  return errors;
+}
+
+/** Step 2 of a password reset: the emailed code and the new password. */
+export function validateResetPassword(input: { code: string; password: string }): FieldErrors<'code' | 'password'> {
+  const errors: FieldErrors<'code' | 'password'> = {};
+  if (!/^\d{6,10}$/.test(input.code.trim())) add(errors, 'code', 'Enter the code from the email.');
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    add(errors, 'password', `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+  }
+  return errors;
+}
+
 /** "7:5" → "07:05"; returns null if it isn't a valid 24-hour time. */
 export function normalizeTime(value: string): string | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
