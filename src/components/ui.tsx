@@ -272,6 +272,29 @@ const segmentedStyles = StyleSheet.create({
   option: { minWidth: 40, alignItems: 'center', paddingVertical: 5, paddingHorizontal: 12, borderRadius: 999 },
 });
 
+/** A Switch in the palette's colours: main-coloured track, tertiary knob when on. */
+export function ThemedSwitch({
+  value,
+  onValueChange,
+  accessibilityLabel,
+}: {
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  accessibilityLabel: string;
+}) {
+  const theme = useTheme();
+  return (
+    <Switch
+      value={value}
+      onValueChange={onValueChange}
+      trackColor={{ false: theme.border, true: theme.accent }}
+      thumbColor={value ? theme.tertiary : theme.switchOff}
+      ios_backgroundColor={theme.border}
+      accessibilityLabel={accessibilityLabel}
+    />
+  );
+}
+
 /** A label with an on/off switch, right-aligned. */
 export function Toggle({
   label,
@@ -282,11 +305,10 @@ export function Toggle({
   value: boolean;
   onChange: (value: boolean) => void;
 }) {
-  const theme = useTheme();
   return (
     <View style={toggleStyles.row}>
       <ThemedText type="small">{label}</ThemedText>
-      <Switch value={value} onValueChange={onChange} trackColor={{ true: theme.accent }} accessibilityLabel={label} />
+      <ThemedSwitch value={value} onValueChange={onChange} accessibilityLabel={label} />
     </View>
   );
 }

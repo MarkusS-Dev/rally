@@ -100,6 +100,8 @@ export function buildTheme(scheme: 'light' | 'dark', p: Palette): ThemeColors {
     ...base,
     accent,
     onAccent: readableOn(accent),
+    // Switch knobs: the raw tertiary colour, nudged so it shows on the main-coloured track.
+    tertiary: ensureContrast(p.tertiary, accent, 1.5),
     backgroundElement: tint(base.backgroundElement, p.secondary, dark ? 0.18 : 0.12, base.text),
     border: mix(base.border, p.secondary, dark ? 0.22 : 0.18),
     backgroundSelected: tint(base.backgroundSelected, p.tertiary, dark ? 0.38 : 0.3, base.text),

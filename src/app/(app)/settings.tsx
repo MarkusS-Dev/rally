@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { AppearanceCard } from '@/components/appearance-card';
 import { TimeWheel } from '@/components/time-wheel';
-import { Button, Card, Field, Loading, Notice, Row, Screen } from '@/components/ui';
+import { Button, Card, Field, Loading, Notice, Row, Screen, ThemedSwitch } from '@/components/ui';
 import { useFocusQuery } from '@/hooks/use-focus-query';
-import { useTheme } from '@/hooks/use-theme';
 import { signOut } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/errors';
 import { getMySettings, updateDisplayName, updateSettings } from '@/lib/api/settings';
@@ -56,7 +55,6 @@ export default function SettingsScreen() {
 
 /** Name, goal and the daily reminder; read-only until you tap Edit. */
 function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () => void }) {
-  const theme = useTheme();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(initial.displayName);
   const [goal, setGoal] = useState(initial.goalWeightKg?.toFixed(1) ?? '');
@@ -153,12 +151,7 @@ function ProfileForm({ initial, onSaved }: { initial: MySettings; onSaved: () =>
           />
           <Row style={styles.spread}>
             <ThemedText type="smallBold">Daily reminder</ThemedText>
-            <Switch
-              value={reminderOn}
-              onValueChange={setReminderOn}
-              trackColor={{ true: theme.accent }}
-              accessibilityLabel="Daily reminder"
-            />
+            <ThemedSwitch value={reminderOn} onValueChange={setReminderOn} accessibilityLabel="Daily reminder" />
           </Row>
           {reminderOn && <TimeWheel value={time} onChange={setTime} />}
           <Notice message={message?.text} tone={message?.tone} />
